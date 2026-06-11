@@ -23,3 +23,7 @@ dist
 
 # bindings dist
 src/bindings
+
+# private docs
+docs/private
+docs/spark
