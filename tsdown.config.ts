@@ -7,4 +7,5 @@ export default defineConfig({
   ],
   dts: { build: true },
   entry: ['./src/index.ts', './src/react.tsx'],
+  platform: 'browser',
 })
