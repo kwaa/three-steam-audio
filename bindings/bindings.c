@@ -303,7 +303,9 @@ int sa_binaural_effect_apply(void* effect,
     params.direction.x = dir_x;
     params.direction.y = dir_y;
     params.direction.z = dir_z;
-    params.interpolation = IPL_HRTFINTERPOLATION_NEAREST;
+    params.interpolation = spatial_blend >= 0.5f
+        ? IPL_HRTFINTERPOLATION_BILINEAR
+        : IPL_HRTFINTERPOLATION_NEAREST;
     params.spatialBlend = spatial_blend;
     iplBinauralEffectApply((IPLBinauralEffect)effect, &params, &input, &output);
     return 0;

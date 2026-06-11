@@ -596,12 +596,14 @@ class SourceImpl implements Source {
       hrtf: this.#settings.hrtf,
       spatialBlend: this.#settings.spatialBlend,
     }
-    const nextDirectSimulation = typeof settings.directSimulation === 'object'
-      ? {
-          ...this.#settings.directSimulation,
-          ...settings.directSimulation,
-        }
-      : settings.directSimulation ?? current.directSimulation
+    const nextDirectSimulation = settings.directSimulation === false
+      ? false
+      : typeof settings.directSimulation === 'object'
+        ? {
+            ...this.#settings.directSimulation,
+            ...settings.directSimulation,
+          }
+        : settings.directSimulation ?? current.directSimulation
     this.#settings = normalizeSettings({
       ...current,
       ...settings,
@@ -799,12 +801,12 @@ export class WorldImpl {
     if (this.audioContext.state !== 'running')
       return
     this.#accumulator += delta
-    if (this.#accumulator < this.#simulationInterval)
-      return
-    this.#accumulator %= this.#simulationInterval
-    assertNativeStatus('iplSimulatorRunDirect', this.module._sa_simulator_run_direct(this.simulator))
-    for (const source of this.#sources)
-      source.readOutputs()
+    while (this.#accumulator >= this.#simulationInterval) {
+      this.#accumulator -= this.#simulationInterval
+      assertNativeStatus('iplSimulatorRunDirect', this.module._sa_simulator_run_direct(this.simulator))
+      for (const source of this.#sources)
+        source.readOutputs()
+    }
   }
 }
 

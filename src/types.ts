@@ -155,6 +155,7 @@ export type SteamAudioModuleFactory = (
 
 export interface SteamAudioModuleOptions {
   locateFile?: (path: string, prefix: string) => string
+  wasmBinary?: ArrayBuffer
 }
 
 export type ThreeBand = readonly [number, number, number]

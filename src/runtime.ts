@@ -43,17 +43,16 @@ const prepareRuntime = async (
   if (!('audioWorklet' in audioContext) || typeof audioContext.audioWorklet.addModule !== 'function')
     throw new Error('three-steam-audio requires AudioWorklet support')
 
-  const wasmPromise = fetch(wasmUrl).then(async (response) => {
-    if (!response.ok)
-      throw new Error(`Unable to load Steam Audio WASM (${response.status} ${response.statusText})`)
-    return response.arrayBuffer()
-  })
+  const wasmResponse = await fetch(wasmUrl)
+  if (!wasmResponse.ok)
+    throw new Error(`Unable to load Steam Audio WASM (${wasmResponse.status} ${wasmResponse.statusText})`)
+  const wasmBinary = await wasmResponse.arrayBuffer()
 
-  const [module, wasmBinary] = await Promise.all([
+  const [module] = await Promise.all([
     moduleFactory({
       locateFile: path => path.endsWith('.wasm') ? wasmUrl.href : path,
+      wasmBinary,
     }) as Promise<NativeModule>,
-    wasmPromise,
     audioContext.audioWorklet.addModule(workletUrl),
   ])
 
