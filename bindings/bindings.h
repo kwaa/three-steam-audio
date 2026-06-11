@@ -6,183 +6,112 @@ extern "C" {
 #endif
 
 /*
- * three-steam-audio C bridge layer
- *
- * Design goals:
- *   - Flat C API that maps 1:1 to Emscripten ccall/cwrap
- *   - No complex structs passed across the JS/WASM boundary
- *   - Coordinate system matches Steam Audio: right-handed, +x right, +y up, -z forward
- *   - When passing data from Three.js: remember to flip the z axis
+ * Flat bridge used by the TypeScript runtime. Complex Steam Audio structs stay
+ * on the C side; JavaScript only passes scalars and contiguous arrays.
  */
 
-/*
- * All functions that create objects return 0 on success, non-zero on failure.
- * All "release" functions accept NULL safely and will set the internal pointer to NULL.
- */
-
-/* ================================================================ */
-/*  Context                                                         */
-/* ================================================================ */
-
-int  sa_context_create(void** out_ctx);
+int sa_context_create(void** out_ctx);
 void sa_context_release(void* ctx);
 
-/* ================================================================ */
-/*  Scene                                                           */
-/* ================================================================ */
-
-/*
- * Create a static scene from raw triangle data.
- *
- *   verts:            float[num_verts * 3]   — xyz xyz xyz...
- *   indices:          int[num_tris * 3]      — i0 i1 i2 i3 i4 i5...
- *   absorption:       float[num_materials * 3] — per-material (low, mid, high)
- *   scattering:       float[num_materials]   — per-material
- *   tri_materials:    int[num_tris]          — material index for each triangle
- */
-int  sa_scene_create(void* ctx,
-                     int num_verts, const float* verts,
-                     int num_tris,  const int* indices,
-                     int num_materials,
-                     const float* absorption,
-                     const float* scattering,
-                     const int* tri_materials,
-                     void** out_scene);
-
+int sa_scene_create(void* ctx, void** out_scene);
+void sa_scene_commit(void* scene);
 void sa_scene_release(void* scene);
 
-/* ================================================================ */
-/*  Instanced Mesh (Dynamic Geometry)                               */
-/* ================================================================ */
+int sa_static_mesh_create(void* scene,
+                          int num_verts, const float* verts,
+                          int num_tris, const int* indices,
+                          int num_materials,
+                          const float* absorption,
+                          const float* scattering,
+                          const float* transmission,
+                          const int* tri_materials,
+                          void** out_mesh);
+void sa_static_mesh_add(void* mesh, void* scene);
+void sa_static_mesh_remove(void* mesh, void* scene);
+void sa_static_mesh_release(void* mesh);
 
 /*
- * Create an instanced mesh from a sub-scene and add it to a parent scene.
- * The sub-scene should be created with sa_scene_create.
- *
- *   matrix_4x4: float[16] in row-major order (the usual Three.js matrix.elements)
+ * matrix_4x4 is row-major. TypeScript explicitly transposes Three.js'
+ * column-major Matrix4.elements before crossing the WASM boundary.
  */
-int  sa_instanced_mesh_create(void* parent_scene, void* sub_scene,
-                              const float* matrix_4x4,
-                              void** out_mesh);
-
+int sa_instanced_mesh_create(void* parent_scene, void* sub_scene,
+                             const float* matrix_4x4, void** out_mesh);
 void sa_instanced_mesh_update_transform(void* mesh, void* parent_scene,
                                         const float* matrix_4x4);
+void sa_instanced_mesh_remove(void* mesh, void* parent_scene);
+void sa_instanced_mesh_release(void* mesh);
 
-void sa_instanced_mesh_release(void* mesh, void* parent_scene);
-
-/* ================================================================ */
-/*  HRTF                                                            */
-/* ================================================================ */
-
-int  sa_hrtf_create(void* ctx, int sample_rate, int frame_size, void** out_hrtf);
+int sa_hrtf_create(void* ctx, int sample_rate, int frame_size, void** out_hrtf);
 void sa_hrtf_release(void* hrtf);
 
-/* ================================================================ */
-/*  Binaural Effect                                                 */
-/* ================================================================ */
-
-int  sa_binaural_effect_create(void* ctx, int sample_rate, int frame_size,
-                               void* hrtf, void** out_effect);
+int sa_binaural_effect_create(void* ctx, int sample_rate, int frame_size,
+                              void* hrtf, void** out_effect);
 void sa_binaural_effect_release(void* effect);
+int sa_binaural_effect_apply(void* effect,
+                             float dir_x, float dir_y, float dir_z,
+                             float spatial_blend,
+                             const float* in_buffer, float* out_buffer,
+                             int num_channels, int num_samples);
 
-/*
- * Apply binaural spatialisation.
- *
- *   dir_*:     unit vector from listener to source (Steam Audio coords)
- *   in_buffer:  deinterleaved float array, layout [left_samples][right_samples]...
- *               Number of input channels is determined by num_channels (1 or 2).
- *   out_buffer: deinterleaved float array, layout [left_samples][right_samples]
- *               Must have space for 2 channels.
- */
-int  sa_binaural_effect_apply(void* effect,
-                              float dir_x, float dir_y, float dir_z,
-                              float spatial_blend,
-                              const float* in_buffer, float* out_buffer,
-                              int num_channels, int num_samples);
-
-/* ================================================================ */
-/*  Direct Effect                                                   */
-/* ================================================================ */
-
-int  sa_direct_effect_create(void* ctx, int sample_rate, int frame_size,
-                             int num_channels, void** out_effect);
+int sa_direct_effect_create(void* ctx, int sample_rate, int frame_size,
+                            int num_channels, void** out_effect);
 void sa_direct_effect_release(void* effect);
+int sa_direct_effect_apply(void* effect,
+                           int effect_flags,
+                           int transmission_type,
+                           float distance_attenuation,
+                           const float* air_absorption,
+                           float directivity,
+                           float occlusion,
+                           const float* transmission,
+                           const float* in_buffer, float* out_buffer,
+                           int num_channels, int num_samples);
 
-/*
- * Apply direct-path filtering (distance attenuation, air absorption, occlusion, etc.)
- *
- *   air_absorption:  float[3] — low, mid, high frequency coefficients (0..1)
- *   transmission:    float[3] — low, mid, high frequency transmission (0..1)
- *   in_buffer / out_buffer: deinterleaved, same channel count
- */
-int  sa_direct_effect_apply(void* effect,
-                            float distance_attenuation,
-                            const float* air_absorption,
-                            float directivity,
-                            float occlusion,
-                            const float* transmission,
-                            const float* in_buffer, float* out_buffer,
-                            int num_channels, int num_samples);
-
-/* ================================================================ */
-/*  Simulator (simplified — direct path only)                       */
-/* ================================================================ */
-
-int  sa_simulator_create(void* ctx, void* scene,
-                         int sample_rate, int frame_size,
-                         void** out_sim);
+int sa_simulator_create(void* ctx, void* scene,
+                        int sample_rate, int frame_size,
+                        int max_sources, int max_occlusion_samples,
+                        void** out_sim);
+void sa_simulator_commit(void* sim);
 void sa_simulator_release(void* sim);
-int  sa_simulator_run_direct(void* sim);
+int sa_simulator_run_direct(void* sim);
 void sa_simulator_set_listener(void* sim,
                                float x, float y, float z,
                                float ahead_x, float ahead_y, float ahead_z,
                                float up_x, float up_y, float up_z);
 
-/* ================================================================ */
-/*  Source                                                          */
-/* ================================================================ */
-
-int  sa_source_create(void* sim, void** out_source);
-void sa_source_release(void* source);
+int sa_source_create(void* sim, void** out_source);
+void sa_source_release(void* source, void* sim);
 
 /*
- * Set source transform and occlusion. This internally calls iplSourceSetInputs.
- * Call sa_simulator_run_direct afterwards to update simulation results.
+ * direct_flags uses the IPLDirectSimulationFlags bit layout.
+ * distance_model: 0 default, 1 inverse, 2 sampled curve.
+ * air_model: 0 default, 1 exponential, 2 sampled curves.
+ * occlusion_type: 0 raycast, 1 volumetric.
  */
-void sa_source_set_transform(void* source,
-                             float x, float y, float z,
-                             float ahead_x, float ahead_y, float ahead_z,
-                             float up_x, float up_y, float up_z,
-                             float occlusion,
-                             float dipole_weight,
-                             float dipole_power);
+void sa_source_set_inputs(void* source,
+                          float x, float y, float z,
+                          float ahead_x, float ahead_y, float ahead_z,
+                          float up_x, float up_y, float up_z,
+                          int direct_flags,
+                          int distance_model, float min_distance,
+                          float distance_max, int distance_samples,
+                          const float* distance_curve,
+                          int air_model, const float* air_coefficients,
+                          float air_max, int air_samples,
+                          const float* air_curves,
+                          float dipole_weight, float dipole_power,
+                          int occlusion_type, float occlusion_radius,
+                          int occlusion_samples, int transmission_rays);
 
-/*
- * Read back direct-path simulation results.
- * Must call sa_simulator_run_direct between set_transform and get_outputs.
- */
-int  sa_source_get_direct_outputs(void* source,
-                                  float* out_distance_att,
-                                  float* out_air_absorption,
-                                  float* out_directivity,
-                                  float* out_occlusion,
-                                  float* out_transmission);
+int sa_source_get_direct_outputs(void* source,
+                                 float* out_distance_att,
+                                 float* out_air_absorption,
+                                 float* out_directivity,
+                                 float* out_occlusion,
+                                 float* out_transmission);
 
-/* ================================================================ */
-/*  Buffer Helpers                                                  */
-/* ================================================================ */
-
-/*
- * Allocate / free a float array on the WASM heap.
- * The returned pointer can be used directly with Module.HEAPF32 in JS.
- */
 float* sa_buffer_alloc(int num_floats);
-void   sa_buffer_free(float* buffer);
-
-/*
- * Convert between interleaved (Web Audio native) and deinterleaved (Steam Audio native).
- * All pointers must point to WASM heap memory.
- */
+void sa_buffer_free(float* buffer);
 void sa_buffer_deinterleave(const float* interleaved, float* deinterleaved,
                             int num_channels, int num_samples);
 void sa_buffer_interleave(const float* deinterleaved, float* interleaved,
@@ -192,4 +121,4 @@ void sa_buffer_interleave(const float* deinterleaved, float* interleaved,
 }
 #endif
 
-#endif /* SA_BRIDGE_H */
+#endif
