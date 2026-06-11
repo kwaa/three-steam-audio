@@ -24,7 +24,7 @@ build: patch
 
 build-bindings:
   mkdir -p "{{bindings-dist}}"
-  node "{{root}}/scripts/generate-types.js" "{{bindings-dist}}/phonon_bindings.d.ts"
+  node "{{root}}/scripts/generate-types.ts" "{{bindings-dist}}/phonon_bindings.d.ts"
   emcc -O3 \
     -I "{{steam-core}}/bin/include" \
     -I bindings \

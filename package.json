@@ -1,8 +1,8 @@
 {
   "name": "three-steam-audio",
   "type": "module",
-  "packageManager": "pnpm@11.5.2",
   "private": true,
+  "packageManager": "pnpm@11.5.2",
   "exports": {
     ".": "./src/index.ts",
     "./wasm": "./src/phonon_bindings.wasm",
@@ -25,17 +25,8 @@
     }
   },
   "scripts": {
-    "build": "tsdown"
-  },
-  "devDependencies": {
-    "@types/emscripten": "^1.41.5",
-    "@types/node": "^25.9.2",
-    "@types/react": "^19.2.17",
-    "@types/three": "^0.184.1",
-    "react": "^19.2.7",
-    "three": "^0.184.0",
-    "tsdown": "^0.22.2",
-    "typescript": "^6.0.3"
+    "build": "tsdown",
+    "lint": "eslint ."
   },
   "peerDependencies": {
     "react": "^19.2.7",
@@ -45,5 +36,21 @@
     "react": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^9.0.0",
+    "@eslint-react/eslint-plugin": "^5.6.0",
+    "@moeru/eslint-config": "0.1.0-beta.18",
+    "@moeru/tsconfig": "0.1.0-beta.18",
+    "@types/emscripten": "^1.41.5",
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.17",
+    "@types/three": "^0.184.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "react": "^19.2.7",
+    "three": "^0.184.0",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
   }
 }

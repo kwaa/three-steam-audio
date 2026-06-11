@@ -3,6 +3,8 @@ ignorePaths: []
 dictionaryDefinitions: []
 dictionaries: []
 words:
+  - ambisonics
+  - antfu
   - APPLYDIRECTIVITY
   - deinterleaved
   - directivity
@@ -15,7 +17,10 @@ words:
   - HRTFTYPE
   - IPLHRTF
   - kwaa
+  - moeru
   - nixpkgs
   - pkgs
+  - sonarjs
+  - tsdown
 ignoreWords: []
 import: []
