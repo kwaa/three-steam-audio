@@ -131,6 +131,59 @@ void sa_scene_release(void* scene)
 }
 
 /* ================================================================ */
+/*  Instanced Mesh (Dynamic Geometry)                               */
+/* ================================================================ */
+
+EMSCRIPTEN_KEEPALIVE
+int sa_instanced_mesh_create(void* parent_scene, void* sub_scene,
+                             const float* matrix_4x4,
+                             void** out_mesh)
+{
+    if (!parent_scene || !sub_scene || !matrix_4x4 || !out_mesh) return 1;
+
+    IPLInstancedMeshSettings settings;
+    memset(&settings, 0, sizeof(settings));
+    settings.subScene = (IPLScene)sub_scene;
+
+    for (int row = 0; row < 4; ++row)
+        for (int col = 0; col < 4; ++col)
+            settings.transform.elements[row][col] = matrix_4x4[row * 4 + col];
+
+    IPLerror err = iplInstancedMeshCreate((IPLScene)parent_scene, &settings, (IPLInstancedMesh*)out_mesh);
+    if (err != IPL_STATUS_SUCCESS) return (int)err;
+
+    iplInstancedMeshAdd((IPLInstancedMesh)(*out_mesh), (IPLScene)parent_scene);
+    iplSceneCommit((IPLScene)parent_scene);
+
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_instanced_mesh_update_transform(void* mesh, void* parent_scene,
+                                        const float* matrix_4x4)
+{
+    if (!mesh || !parent_scene || !matrix_4x4) return;
+
+    IPLMatrix4x4 transform;
+    for (int row = 0; row < 4; ++row)
+        for (int col = 0; col < 4; ++col)
+            transform.elements[row][col] = matrix_4x4[row * 4 + col];
+
+    iplInstancedMeshUpdateTransform((IPLInstancedMesh)mesh, (IPLScene)parent_scene, transform);
+    iplSceneCommit((IPLScene)parent_scene);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_instanced_mesh_release(void* mesh, void* parent_scene)
+{
+    if (!mesh || !parent_scene) return;
+
+    iplInstancedMeshRemove((IPLInstancedMesh)mesh, (IPLScene)parent_scene);
+    iplSceneCommit((IPLScene)parent_scene);
+    iplInstancedMeshRelease((IPLInstancedMesh*)&mesh);
+}
+
+/* ================================================================ */
 /*  HRTF                                                            */
 /* ================================================================ */
 
@@ -193,6 +246,7 @@ void sa_binaural_effect_release(void* effect)
 EMSCRIPTEN_KEEPALIVE
 int sa_binaural_effect_apply(void* effect,
                              float dir_x, float dir_y, float dir_z,
+                             float spatial_blend,
                              const float* in_buffer, float* out_buffer,
                              int num_channels, int num_samples)
 {
@@ -217,7 +271,7 @@ int sa_binaural_effect_apply(void* effect,
     params.direction.y = dir_y;
     params.direction.z = dir_z;
     params.interpolation = IPL_HRTFINTERPOLATION_NEAREST;
-    params.spatialBlend = 1.0f;
+    params.spatialBlend = spatial_blend;
 
     iplBinauralEffectApply((IPLBinauralEffect)effect, &params, &in_buf, &out_buf);
     return 0;
@@ -408,7 +462,9 @@ void sa_source_set_transform(void* source,
                              float x, float y, float z,
                              float ahead_x, float ahead_y, float ahead_z,
                              float up_x, float up_y, float up_z,
-                             float occlusion)
+                             float occlusion,
+                             float dipole_weight,
+                             float dipole_power)
 {
     if (!source) return;
 
@@ -441,8 +497,8 @@ void sa_source_set_transform(void* source,
     /* Default models */
     inputs.distanceAttenuationModel.type = IPL_DISTANCEATTENUATIONTYPE_DEFAULT;
     inputs.airAbsorptionModel.type = IPL_AIRABSORPTIONTYPE_DEFAULT;
-    inputs.directivity.dipoleWeight = 0.0f;
-    inputs.directivity.dipolePower = 0.0f;
+    inputs.directivity.dipoleWeight = dipole_weight;
+    inputs.directivity.dipolePower = dipole_power;
 
     iplSourceSetInputs((IPLSource)source, IPL_SIMULATIONFLAGS_DIRECT, &inputs);
 }

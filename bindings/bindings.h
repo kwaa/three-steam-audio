@@ -52,6 +52,25 @@ int  sa_scene_create(void* ctx,
 void sa_scene_release(void* scene);
 
 /* ================================================================ */
+/*  Instanced Mesh (Dynamic Geometry)                               */
+/* ================================================================ */
+
+/*
+ * Create an instanced mesh from a sub-scene and add it to a parent scene.
+ * The sub-scene should be created with sa_scene_create.
+ *
+ *   matrix_4x4: float[16] in row-major order (the usual Three.js matrix.elements)
+ */
+int  sa_instanced_mesh_create(void* parent_scene, void* sub_scene,
+                              const float* matrix_4x4,
+                              void** out_mesh);
+
+void sa_instanced_mesh_update_transform(void* mesh, void* parent_scene,
+                                        const float* matrix_4x4);
+
+void sa_instanced_mesh_release(void* mesh, void* parent_scene);
+
+/* ================================================================ */
 /*  HRTF                                                            */
 /* ================================================================ */
 
@@ -77,6 +96,7 @@ void sa_binaural_effect_release(void* effect);
  */
 int  sa_binaural_effect_apply(void* effect,
                               float dir_x, float dir_y, float dir_z,
+                              float spatial_blend,
                               const float* in_buffer, float* out_buffer,
                               int num_channels, int num_samples);
 
@@ -133,7 +153,9 @@ void sa_source_set_transform(void* source,
                              float x, float y, float z,
                              float ahead_x, float ahead_y, float ahead_z,
                              float up_x, float up_y, float up_z,
-                             float occlusion);
+                             float occlusion,
+                             float dipole_weight,
+                             float dipole_power);
 
 /*
  * Read back direct-path simulation results.
