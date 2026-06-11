@@ -1,6 +1,10 @@
 import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  copy: [{ flatten: true, from: 'src/bindings/*', to: 'dist' }],
-  entry: ['./src/index.ts'],
+  copy: [
+    { from: 'src/bindings/*', to: 'dist/bindings' },
+    { flatten: true, from: 'src/steam-audio-processor.js', to: 'dist' },
+  ],
+  dts: { build: true },
+  entry: ['./src/index.ts', './src/react.tsx'],
 })

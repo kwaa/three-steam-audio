@@ -36,7 +36,7 @@ build-bindings:
     -s WASM=1 \
     -s EXPORT_ES6=1 \
     -s ENVIRONMENT=web,worker \
-    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue"]' \
+    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","HEAP32","HEAPU32","HEAPF32","HEAPU8"]' \
     -s EXPORTED_FUNCTIONS='["_malloc","_free"]' \
     -s ALLOW_MEMORY_GROWTH=1 \
     -o "{{bindings-dist}}/phonon_bindings.js"

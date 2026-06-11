@@ -15,8 +15,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const headerPath = join(__dirname, '..', 'bindings', 'bindings.h')
 const header = readFileSync(headerPath, 'utf-8')
 
-// Parse C function declarations: int|void sa_xxx(...);
-const funcRegex = /^(int|void)\s+(sa_\w+)\s*\(([^)]*)\);/gm
+// Parse the flat bridge declarations. Pointer return values are WASM addresses.
+const funcRegex = /^(int|void|float\*)\s+(sa_\w+)\s*\(([^)]*)\);/gm
 
 // Map C types to TS types for parameters
 const cTypeToTs = (type: string) => {
@@ -71,6 +71,12 @@ let output = `// Auto-generated from bindings/bindings.h
 // Do not edit manually. Run: node scripts/generate-types.ts
 
 export interface SteamAudioBindings extends EmscriptenModule {
+  HEAPF32: Float32Array;
+  HEAP32: Int32Array;
+  HEAPU32: Uint32Array;
+  HEAPU8: Uint8Array;
+  _malloc(size: number): number;
+  _free(pointer: number): void;
 `
 
 for (const fn of functions) {

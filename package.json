@@ -1,12 +1,15 @@
 {
   "name": "three-steam-audio",
   "type": "module",
+  "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@11.5.2",
   "exports": {
     ".": "./src/index.ts",
-    "./wasm": "./src/phonon_bindings.wasm",
-    "./wasm-runtime": "./src/phonon_bindings.js"
+    "./react": "./src/react.tsx",
+    "./wasm": "./src/bindings/phonon_bindings.wasm",
+    "./wasm-runtime": "./src/bindings/phonon_bindings.js",
+    "./worklet": "./src/steam-audio-processor.js"
   },
   "files": [
     "dist"
@@ -14,23 +17,31 @@
   "publishConfig": {
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
       },
-      "./wasm": "./dist/phonon_bindings.wasm",
+      "./react": {
+        "types": "./dist/react.d.mts",
+        "default": "./dist/react.mjs"
+      },
+      "./wasm": "./dist/bindings/phonon_bindings.wasm",
       "./wasm-runtime": {
-        "types": "./dist/phonon_bindings.d.ts",
-        "default": "./dist/phonon_bindings.js"
-      }
+        "types": "./dist/bindings/phonon_bindings.d.ts",
+        "default": "./dist/bindings/phonon_bindings.js"
+      },
+      "./worklet": "./dist/steam-audio-processor.js"
     }
   },
   "scripts": {
     "build": "tsdown",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "tsdown && node test/audio-connections.test.js && node test/geometry.test.js && node test/resource-cache.test.js && node --test test/worklet.test.js test/world.test.js",
+    "typecheck": "tsc -p tsconfig.app.json --noEmit"
   },
   "peerDependencies": {
     "@react-three/fiber": "^9.6.1",
     "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "three": "^0.184.0"
   },
   "peerDependenciesMeta": {
@@ -38,6 +49,9 @@
       "optional": true
     },
     "react": {
+      "optional": true
+    },
+    "react-dom": {
       "optional": true
     }
   },

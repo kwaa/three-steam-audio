@@ -12,6 +12,8 @@ words:
   - emscripten
   - EMSDK
   - esbuild
+  - HEAPF
+  - HEAPU
   - hrtf
   - HRTFINTERPOLATION
   - HRTFTYPE
