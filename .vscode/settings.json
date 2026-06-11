@@ -1,0 +1,7 @@
+{
+  "git.detectSubmodules": false,
+  "git.autoRepositoryDetection": "openEditors",
+  "git.repositoryScanIgnoredFolders": [
+    "steam-audio"
+  ]
+}

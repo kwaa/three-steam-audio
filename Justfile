@@ -1,0 +1,23 @@
+root := justfile_directory()
+steam := root / "steam-audio"
+steam-core := steam / "core"
+steam-build := steam-core / "build"
+build := root / ".build"
+wasm-build := build / "wasm"
+dist := root / "dist"
+
+get_dependencies:
+  cd "{{steam-build}}" && python get_dependencies.py --platform wasm
+
+patch:
+  @if grep -q 'FLATBUFFERS_DELETE_FUNC(TableKeyComparator &operator=(const TableKeyComparator &other))' \
+    "{{steam-core}}/deps/flatbuffers/include/flatbuffers/flatbuffers.h"; then \
+    echo "flatbuffers patch already applied"; \
+  else \
+    patch -p0 < "{{root}}/patches/steam-audio/flatbuffers-1.12-table-key-comparator.patch"; \
+  fi
+
+build: patch
+  cd "{{steam-build}}" && python build.py --platform wasm \
+    --minimal \
+    --operation ci_build

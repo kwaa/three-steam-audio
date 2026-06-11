@@ -18,12 +18,27 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          emsdkCompat = pkgs.runCommand "emsdk-compat" { } ''
+            test -f "${pkgs.emscripten}/share/emscripten/cmake/Modules/Platform/Emscripten.cmake"
+
+            mkdir -p "$out/upstream"
+            ln -s "${pkgs.emscripten}/share/emscripten" "$out/upstream/emscripten"
+          '';
         in
         {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
-              
+              cmake
+              gnumake
+              gnupatch
+              ninja
+              emscripten
             ];
+
+            CMAKE_POLICY_VERSION_MINIMUM = "3.5";
+            # EMSDK = "${pkgs.emscripten}/share/emscripten";
+            EMSDK = emsdkCompat;
+            STEAMAUDIO_ROOT="$PWD/steam-audio";
           };
         }
       );

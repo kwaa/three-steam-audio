@@ -1,0 +1,15 @@
+diff --git a/flatbuffers.h b/flatbuffers.h
+index 01700d6..0f3a7df 100644
+--- steam-audio/core/deps/flatbuffers/include/flatbuffers/flatbuffers.h
++++ steam-audio/core/deps/flatbuffers/include/flatbuffers/flatbuffers.h
+@@ -1871,10 +1871,7 @@ class FlatBufferBuilder {
+     vector_downward &buf_;
+
+    private:
+-    TableKeyComparator &operator=(const TableKeyComparator &other) {
+-     buf_ = other.buf_;
+-     return *this;
+-    }
++    FLATBUFFERS_DELETE_FUNC(TableKeyComparator &operator=(const TableKeyComparator &other))
+   };
+   /// @endcond
