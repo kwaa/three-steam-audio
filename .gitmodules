@@ -1,0 +1,3 @@
+[submodule "steam-audio"]
+	path = steam-audio
+	url = https://github.com/ValveSoftware/steam-audio.git
