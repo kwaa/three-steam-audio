@@ -21,3 +21,22 @@ build: patch
   cd "{{steam-build}}" && python build.py --platform wasm \
     --minimal \
     --operation ci_build
+
+build-bindings:
+  mkdir -p "{{dist}}"
+  node "{{root}}/scripts/generate-types.js" "{{dist}}/phonon_bindings.d.ts"
+  emcc -O3 \
+    -I "{{steam-core}}/bin/include" \
+    -I bindings \
+    bindings/bindings.c \
+    "{{steam-core}}/bin/lib/wasm/libphonon.a" \
+    "{{steam-core}}/deps/pffft/lib/wasm/release/libpffft.a" \
+    "{{steam-core}}/deps/mysofa/lib/wasm/release/libmysofa.a" \
+    "{{steam-core}}/deps/zlib/lib/wasm/release/libz.a" \
+    -s WASM=1 \
+    -s EXPORT_ES6=1 \
+    -s ENVIRONMENT=web,worker \
+    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue"]' \
+    -s EXPORTED_FUNCTIONS='["_malloc","_free"]' \
+    -s ALLOW_MEMORY_GROWTH=1 \
+    -o "{{dist}}/phonon_bindings.js"
