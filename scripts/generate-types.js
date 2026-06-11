@@ -2,7 +2,7 @@
 /**
  * Generate TypeScript declarations from bindings/bindings.h
  *
- * Usage: node scripts/generate-dts.mjs > bindings/bindings.d.ts
+ * Usage: node scripts/generate-types.js > bindings/bindings.d.ts
  */
 
 import { readFileSync } from 'fs';
@@ -56,7 +56,7 @@ while ((m = funcRegex.exec(header)) !== null) {
 
 // Generate d.ts
 let output = `// Auto-generated from bindings/bindings.h
-// Do not edit manually. Run: node scripts/generate-dts.mjs
+// Do not edit manually. Run: node scripts/generate-types.js
 
 export interface SteamAudioBindings extends EmscriptenModule {
 `;
