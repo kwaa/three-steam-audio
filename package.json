@@ -1,0 +1,36 @@
+{
+  "name": "three-steam-audio",
+  "type": "module",
+  "packageManager": "pnpm@11.5.2",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./wasm": "./src/phonon_bindings.wasm",
+    "./wasm-runtime": "./src/phonon_bindings.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./wasm": "./dist/phonon_bindings.wasm",
+      "./wasm-runtime": {
+        "types": "./dist/phonon_bindings.d.ts",
+        "default": "./dist/phonon_bindings.js"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown"
+  },
+  "devDependencies": {
+    "@types/emscripten": "^1.41.5",
+    "@types/node": "^25.9.2",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}

@@ -4,7 +4,7 @@ steam-core := steam / "core"
 steam-build := steam-core / "build"
 build := root / ".build"
 wasm-build := build / "wasm"
-dist := root / "dist"
+bindings-dist := root / "src/bindings"
 
 get_dependencies:
   cd "{{steam-build}}" && python get_dependencies.py --platform wasm
@@ -23,8 +23,8 @@ build: patch
     --operation ci_build
 
 build-bindings:
-  mkdir -p "{{dist}}"
-  node "{{root}}/scripts/generate-types.js" "{{dist}}/phonon_bindings.d.ts"
+  mkdir -p "{{bindings-dist}}"
+  node "{{root}}/scripts/generate-types.js" "{{bindings-dist}}/phonon_bindings.d.ts"
   emcc -O3 \
     -I "{{steam-core}}/bin/include" \
     -I bindings \
@@ -39,4 +39,4 @@ build-bindings:
     -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue"]' \
     -s EXPORTED_FUNCTIONS='["_malloc","_free"]' \
     -s ALLOW_MEMORY_GROWTH=1 \
-    -o "{{dist}}/phonon_bindings.js"
+    -o "{{bindings-dist}}/phonon_bindings.js"

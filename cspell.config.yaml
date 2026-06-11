@@ -3,9 +3,17 @@ ignorePaths: []
 dictionaryDefinitions: []
 dictionaries: []
 words:
+  - APPLYDIRECTIVITY
+  - deinterleaved
+  - directivity
   - direnv
   - emscripten
   - EMSDK
+  - esbuild
+  - hrtf
+  - HRTFINTERPOLATION
+  - HRTFTYPE
+  - IPLHRTF
   - kwaa
   - nixpkgs
   - pkgs
