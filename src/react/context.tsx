@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { RootState } from '@react-three/fiber'
-import type { ReactNode } from 'react'
+import type { ReactNode, RefObject } from 'react'
+import type { Object3D } from 'three'
 
 import type { World } from '../three/world'
 import type {
@@ -18,6 +19,7 @@ import {
   useMemo,
   useRef,
 } from 'react'
+import { Quaternion, Vector3 } from 'three'
 
 import { createWorldFromRuntime } from '../three/world'
 import { defaultModuleFactory, getPreparedRuntimePromise } from '../worker/runtime'
@@ -25,6 +27,7 @@ import { RenderResourceCache } from './resource-cache'
 
 export interface InternalContextValue {
   listener: Listener
+  listenerObjectRef: RefObject<RefObject<null | Object3D> | undefined>
   register: (kind: SyncKind, synchronizer: Synchronizer) => () => void
   scene: World['scene']
   setListenerMounted: (mounted: boolean) => void
@@ -38,7 +41,7 @@ export interface SteamAudioContextValue {
 
 export type Synchronizer = (state: RootState) => void
 
-export type SyncKind = 'dynamic' | 'listener' | 'source'
+export type SyncKind = 'dynamic' | 'source'
 
 const SteamAudioContext = createContext<InternalContextValue | null>(null)
 
@@ -84,10 +87,13 @@ const SteamAudioProvider = ({
 }: ProviderProps) => {
   const synchronizersRef = useRef<Record<SyncKind, Set<Synchronizer>>>({
     dynamic: new Set(),
-    listener: new Set(),
     source: new Set(),
   })
   const listenerCountRef = useRef(0)
+  const warnedRef = useRef(false)
+  const listenerObjectRef = useRef<RefObject<null | Object3D> | undefined>(undefined)
+  const listenerPosition = useMemo(() => new Vector3(), [])
+  const listenerOrientation = useMemo(() => new Quaternion(), [])
 
   const register = useCallback((kind: SyncKind, synchronizer: Synchronizer) => {
     synchronizersRef.current[kind].add(synchronizer)
@@ -104,7 +110,25 @@ const SteamAudioProvider = ({
     if (paused)
       return
     state.scene.updateWorldMatrix(true, true)
-    for (const synchronizer of synchronizersRef.current.listener) synchronizer(state)
+
+    if (listenerCountRef.current > 0) {
+      const object = listenerObjectRef.current
+      let target = object?.current ?? state.camera
+      if (object && !object.current) {
+        if (!warnedRef.current) {
+          warnedRef.current = true
+          console.warn('SteamAudioListener object ref is null; retaining the last listener transform')
+        }
+      }
+      else {
+        if (state.gl.xr.isPresenting)
+          target = state.gl.xr.getCamera()
+        target.getWorldPosition(listenerPosition)
+        target.getWorldQuaternion(listenerOrientation)
+        world.listener.setTransform(listenerPosition, listenerOrientation)
+      }
+    }
+
     for (const synchronizer of synchronizersRef.current.dynamic) synchronizer(state)
     for (const synchronizer of synchronizersRef.current.source) synchronizer(state)
     world.scene.commit()
@@ -122,6 +146,7 @@ const SteamAudioProvider = ({
 
   const value = useMemo<InternalContextValue>(() => ({
     listener: world.listener,
+    listenerObjectRef,
     register,
     scene: world.scene,
     setListenerMounted,

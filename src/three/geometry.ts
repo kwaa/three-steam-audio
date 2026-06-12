@@ -63,6 +63,17 @@ const convertVertices = (
   return vertices
 }
 
+const buildMaterialByOffset = (groups: BufferGeometry['groups'], elementCount: number): Map<number, number> => {
+  const materialByOffset = new Map<number, number>()
+  for (const group of groups) {
+    const end = Math.min(group.start + group.count, elementCount)
+    for (let offset = group.start; offset < end; offset++) {
+      materialByOffset.set(offset, group.materialIndex ?? 0)
+    }
+  }
+  return materialByOffset
+}
+
 const convertTriangles = (
   geometry: BufferGeometry,
   materialCount: number,
@@ -75,6 +86,7 @@ const convertTriangles = (
   const indices = new Int32Array(triangleCount * 3)
   const materialIndices = new Int32Array(triangleCount)
   const flipWinding = matrix.determinant() < 0
+  const materialByOffset = buildMaterialByOffset(geometry.groups, elementCount)
 
   for (let triangle = 0; triangle < triangleCount; triangle++) {
     const sourceOffset = triangleStart + triangle * 3
@@ -85,10 +97,7 @@ const convertTriangles = (
     indices[triangle * 3 + 1] = flipWinding ? c : b
     indices[triangle * 3 + 2] = flipWinding ? b : c
 
-    const group = geometry.groups.find(({ count, start }) =>
-      sourceOffset >= start && sourceOffset < start + count,
-    )
-    const materialIndex = group?.materialIndex ?? 0
+    const materialIndex = materialByOffset.get(sourceOffset) ?? 0
     if (materialIndex < 0 || materialIndex >= materialCount)
       throw new RangeError(`Geometry group references missing acoustic material ${materialIndex}`)
     materialIndices[triangle] = materialIndex

@@ -1,8 +1,7 @@
 import type { RefObject } from 'react'
 import type { Object3D } from 'three'
 
-import { useThree } from '@react-three/fiber'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect } from 'react'
 
 import { useInternalContext } from './context'
 
@@ -11,32 +10,16 @@ export interface SteamAudioListenerProps {
 }
 
 export const SteamAudioListener = ({ object }: SteamAudioListenerProps) => {
-  const { listener, register, setListenerMounted } = useInternalContext('SteamAudioListener')
-  const camera = useThree(state => state.camera)
-  const position = useMemo(() => camera.position.clone(), [camera])
-  const orientation = useMemo(() => camera.quaternion.clone(), [camera])
-  const warnedRef = useRef(false)
+  const { listenerObjectRef, setListenerMounted } = useInternalContext('SteamAudioListener')
 
   useEffect(() => {
+    listenerObjectRef.current = object
     setListenerMounted(true)
-    return () => setListenerMounted(false)
-  }, [setListenerMounted])
-
-  useEffect(() => register('listener', (state) => {
-    let target = object?.current ?? camera
-    if (object && !object.current) {
-      if (!warnedRef.current) {
-        warnedRef.current = true
-        console.warn('SteamAudioListener object ref is null; retaining the last listener transform')
-      }
-      return
+    return () => {
+      setListenerMounted(false)
+      listenerObjectRef.current = undefined
     }
-    if (state.gl.xr.isPresenting)
-      target = state.gl.xr.getCamera()
-    target.getWorldPosition(position)
-    target.getWorldQuaternion(orientation)
-    listener.setTransform(position, orientation)
-  }), [camera, listener, object, orientation, position, register])
+  }, [object, setListenerMounted, listenerObjectRef])
 
   return null
 }
