@@ -17,7 +17,7 @@ patch:
     patch -p0 < "{{root}}/patches/steam-audio/flatbuffers-1.12-table-key-comparator.patch"; \
   fi
 
-build: patch
+build-steam-audio: patch
   cd "{{steam-build}}" && python build.py --platform wasm \
     --minimal \
     --operation ci_build

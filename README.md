@@ -1,6 +1,6 @@
 # three-steam-audio
 
-Steam Audio direct-path simulation and HRTF spatialization for Three.js and
+[Steam Audio](https://github.com/ValveSoftware/steam-audio) direct-path simulation and HRTF spatialization for Three.js and
 React Three Fiber.
 
 ## Core API
@@ -63,11 +63,16 @@ autoplay policy.
 
 ```bash
 just get_dependencies
-just build
+just build-steam-audio
 just build-bindings
+pnpm build
 pnpm test
 ```
 
 The MVP implements direct simulation, HRTF, acoustic materials, static
 geometry, and rigid dynamic geometry. Reflections, reverb, probes, pathing,
 Ambisonics, and custom HRTFs are outside the MVP scope.
+
+## Acknowledgements
+
+three-steam-audio uses the Steam® Audio SDK. Steam® is a trademark or registered trademark of Valve Corporation in the United States of America and elsewhere. Steam® Audio, Copyright 2017 – present, Valve Corp. All rights reserved.

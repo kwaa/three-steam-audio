@@ -23,6 +23,7 @@ words:
   - nixpkgs
   - pkgs
   - sonarjs
+  - spatialization
   - tsdown
 ignoreWords: []
 import: []
