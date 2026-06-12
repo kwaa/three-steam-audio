@@ -28,7 +28,10 @@
         "types": "./dist/bindings/phonon_bindings.d.ts",
         "default": "./dist/bindings/phonon_bindings.js"
       },
-      "./worklet": "./dist/steam-audio-processor.js"
+      "./worklet": {
+        "types": "./dist/steam-audio-processor.d.ts",
+        "default": "./dist/steam-audio-processor.js"
+      }
     }
   },
   "scripts": {

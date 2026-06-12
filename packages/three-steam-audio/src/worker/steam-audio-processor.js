@@ -1,17 +1,27 @@
 /* global AudioWorkletProcessor, registerProcessor, sampleRate */
 import createSteamAudioModule from './bindings/phonon_bindings.js'
 
-const CONTROL_VALUE_COUNT = 15
+const CONTROL_VALUE_COUNT = 23
 const runtimePromises = new Map()
 
+const allocate = (module, byteLength) => {
+  const pointer = module._malloc(byteLength)
+  if (!pointer)
+    throw new Error(`Steam Audio worklet could not allocate ${byteLength} bytes`)
+  return pointer
+}
+
 const createHandle = (module, create) => {
-  const out = module._malloc(4)
+  const out = allocate(module, 4)
   try {
     module.HEAPU32[out >>> 2] = 0
     const status = create(out)
     if (status !== 0)
       throw new Error(`Steam Audio worklet initialization failed with status ${status}`)
-    return module.HEAPU32[out >>> 2]
+    const handle = module.HEAPU32[out >>> 2]
+    if (!handle)
+      throw new Error('Steam Audio worklet initialization returned a null handle')
+    return handle
   }
   finally {
     module._free(out)
@@ -62,8 +72,13 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     const ringSize = this.frameSize * 2
     this.inputLeft = new Float32Array(ringSize)
     this.inputRight = new Float32Array(ringSize)
+    this.inputActive = new Uint8Array(ringSize)
     this.outputLeft = new Float32Array(ringSize)
     this.outputRight = new Float32Array(ringSize)
+    this.reflectionLeft = new Float32Array(ringSize)
+    this.reflectionRight = new Float32Array(ringSize)
+    this.reverbLeft = new Float32Array(ringSize)
+    this.reverbRight = new Float32Array(ringSize)
     this.inputRead = 0
     this.inputWrite = 0
     this.inputCount = 0
@@ -97,11 +112,18 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     const { module } = this.runtime
     module._sa_binaural_effect_release(this.binauralEffect)
     module._sa_direct_effect_release(this.directEffect)
+    module._sa_reflection_effect_release(this.reflectionEffect)
+    module._sa_reflection_effect_release(this.reverbEffect)
     module._free(this.inputPointer)
     module._free(this.directPointer)
     module._free(this.outputPointer)
     module._free(this.airPointer)
     module._free(this.transmissionPointer)
+    module._free(this.monoPointer)
+    module._free(this.reflectionPointer)
+    module._free(this.reverbPointer)
+    module._free(this.reflectionTimesPointer)
+    module._free(this.reverbTimesPointer)
     this.ready = false
   }
 
@@ -114,18 +136,32 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       module._sa_direct_effect_create(context, sampleRate, this.frameSize, 2, out))
     this.binauralEffect = createHandle(module, out =>
       module._sa_binaural_effect_create(context, sampleRate, this.frameSize, hrtf, out))
-    this.inputPointer = module._malloc(this.frameSize * 2 * 4)
-    this.directPointer = module._malloc(this.frameSize * 2 * 4)
-    this.outputPointer = module._malloc(this.frameSize * 2 * 4)
-    this.airPointer = module._malloc(3 * 4)
-    this.transmissionPointer = module._malloc(3 * 4)
+    this.reflectionEffect = createHandle(module, out =>
+      module._sa_reflection_effect_create(context, sampleRate, this.frameSize, 1, out))
+    this.reverbEffect = createHandle(module, out =>
+      module._sa_reflection_effect_create(context, sampleRate, this.frameSize, 1, out))
+    this.inputPointer = allocate(module, this.frameSize * 2 * 4)
+    this.directPointer = allocate(module, this.frameSize * 2 * 4)
+    this.outputPointer = allocate(module, this.frameSize * 2 * 4)
+    this.airPointer = allocate(module, 3 * 4)
+    this.transmissionPointer = allocate(module, 3 * 4)
+    this.monoPointer = allocate(module, this.frameSize * 4)
+    this.reflectionPointer = allocate(module, this.frameSize * 4)
+    this.reverbPointer = allocate(module, this.frameSize * 4)
+    this.reflectionTimesPointer = allocate(module, 3 * 4)
+    this.reverbTimesPointer = allocate(module, 3 * 4)
     this.ready = true
   }
 
   process(inputs, outputs) {
     const output = outputs[0]
-    if (!output?.[0] || !output?.[1])
+    const reflectionOutput = outputs[1]
+    const reverbOutput = outputs[2]
+    if (!output?.[0] || !output?.[1]
+      || !reflectionOutput?.[0] || !reflectionOutput?.[1]
+      || !reverbOutput?.[0] || !reverbOutput?.[1]) {
       return !this.disposed
+    }
     const quantumSize = output[0].length
     if (!this.ready) {
       const input = inputs[0]
@@ -142,7 +178,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.pushInput(inputs[0], quantumSize)
     while (this.inputCount >= this.frameSize)
       this.processBlock()
-    this.pullOutput(output, quantumSize)
+    this.pullOutput(output, reflectionOutput, reverbOutput, quantumSize)
     return !this.disposed
   }
 
@@ -150,9 +186,11 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     const { module } = this.runtime
     const heap = module.HEAPF32
     const inputOffset = this.inputPointer >>> 2
+    let inputActive = false
     for (let index = 0; index < this.frameSize; index++) {
       heap[inputOffset + index] = this.inputLeft[this.inputRead]
       heap[inputOffset + this.frameSize + index] = this.inputRight[this.inputRead]
+      inputActive ||= this.inputActive[this.inputRead] !== 0
       this.inputRead = (this.inputRead + 1) % this.inputLeft.length
     }
     this.inputCount -= this.frameSize
@@ -191,10 +229,54 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       this.frameSize,
     )
 
+    const monoOffset = this.monoPointer >>> 2
+    const reflectionTimesOffset = this.reflectionTimesPointer >>> 2
+    const reverbTimesOffset = this.reverbTimesPointer >>> 2
+    for (let index = 0; index < this.frameSize; index++) {
+      heap[monoOffset + index] = 0.5 * (
+        heap[inputOffset + index]
+        + heap[inputOffset + this.frameSize + index]
+      )
+    }
+    for (let band = 0; band < 3; band++) {
+      heap[reflectionTimesOffset + band] = this.control[15 + band]
+      heap[reverbTimesOffset + band] = this.control[19 + band]
+    }
+    if (inputActive) {
+      module._sa_reflection_effect_apply(
+        this.reflectionEffect,
+        this.reflectionTimesPointer,
+        this.monoPointer,
+        this.reflectionPointer,
+        this.frameSize,
+      )
+      module._sa_reflection_effect_apply(
+        this.reverbEffect,
+        this.reverbTimesPointer,
+        this.monoPointer,
+        this.reverbPointer,
+        this.frameSize,
+      )
+    }
+    else {
+      module._sa_reflection_effect_get_tail(
+        this.reflectionEffect,
+        this.reflectionPointer,
+        this.frameSize,
+      )
+      module._sa_reflection_effect_get_tail(
+        this.reverbEffect,
+        this.reverbPointer,
+        this.frameSize,
+      )
+    }
+
     const targetMix = hrtf ? 1 : 0
     const mixStep = 1 / (sampleRate * 0.02)
     const directOffset = this.directPointer >>> 2
     const outputOffset = this.outputPointer >>> 2
+    const reflectionOffset = this.reflectionPointer >>> 2
+    const reverbOffset = this.reverbPointer >>> 2
     for (let index = 0; index < this.frameSize; index++) {
       if (this.hrtfMix < targetMix)
         this.hrtfMix = Math.min(targetMix, this.hrtfMix + mixStep)
@@ -211,24 +293,38 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     for (let index = 0; index < this.frameSize; index++) {
       this.outputLeft[this.outputWrite] = heap[outputOffset + index]
       this.outputRight[this.outputWrite] = heap[outputOffset + this.frameSize + index]
+      const reflectionSample = heap[reflectionOffset + index] * this.control[18]
+      const reverbSample = heap[reverbOffset + index] * this.control[22]
+      this.reflectionLeft[this.outputWrite] = reflectionSample
+      this.reflectionRight[this.outputWrite] = reflectionSample
+      this.reverbLeft[this.outputWrite] = reverbSample
+      this.reverbRight[this.outputWrite] = reverbSample
       this.outputWrite = (this.outputWrite + 1) % this.outputLeft.length
       this.outputCount++
     }
   }
 
-  pullOutput(output, quantumSize) {
+  pullOutput(output, reflectionOutput, reverbOutput, quantumSize) {
     const left = output[0]
     const right = output[1]
     for (let index = 0; index < quantumSize; index++) {
       if (this.outputCount > 0) {
         left[index] = this.outputLeft[this.outputRead]
         right[index] = this.outputRight[this.outputRead]
+        reflectionOutput[0][index] = this.reflectionLeft[this.outputRead]
+        reflectionOutput[1][index] = this.reflectionRight[this.outputRead]
+        reverbOutput[0][index] = this.reverbLeft[this.outputRead]
+        reverbOutput[1][index] = this.reverbRight[this.outputRead]
         this.outputRead = (this.outputRead + 1) % this.outputLeft.length
         this.outputCount--
       }
       else {
         left[index] = 0
         right[index] = 0
+        reflectionOutput[0][index] = 0
+        reflectionOutput[1][index] = 0
+        reverbOutput[0][index] = 0
+        reverbOutput[1][index] = 0
       }
     }
   }
@@ -236,9 +332,11 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
   pushInput(input, quantumSize) {
     const left = input?.[0]
     const right = input?.[1] ?? left
+    const active = left !== undefined
     for (let index = 0; index < quantumSize; index++) {
       this.inputLeft[this.inputWrite] = left?.[index] ?? 0
       this.inputRight[this.inputWrite] = right?.[index] ?? 0
+      this.inputActive[this.inputWrite] = active ? 1 : 0
       this.inputWrite = (this.inputWrite + 1) % this.inputLeft.length
       this.inputCount++
     }
@@ -260,3 +358,35 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('steam-audio-processor', SteamAudioProcessor)
+
+class SteamAudioBusProcessor extends AudioWorkletProcessor {
+  constructor(options) {
+    super()
+    const wet = options.processorOptions?.wet
+    this.wet = Number.isFinite(wet) && wet >= 0 ? wet : 1
+    this.disposed = false
+    this.port.onmessage = ({ data }) => {
+      if (data?.type === 'wet') {
+        this.wet = Number.isFinite(data.value) && data.value >= 0
+          ? data.value
+          : this.wet
+      }
+      else if (data?.type === 'dispose') {
+        this.disposed = true
+      }
+    }
+  }
+
+  process(inputs, outputs) {
+    const input = inputs[0]
+    const output = outputs[0]
+    for (let channel = 0; channel < output.length; channel++) {
+      const source = input?.[channel] ?? input?.[0]
+      for (let index = 0; index < output[channel].length; index++)
+        output[channel][index] = (source?.[index] ?? 0) * this.wet
+    }
+    return !this.disposed
+  }
+}
+
+registerProcessor('steam-audio-bus-processor', SteamAudioBusProcessor)

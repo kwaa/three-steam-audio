@@ -371,20 +371,88 @@ int sa_direct_effect_apply(void* effect, int effect_flags, int transmission_type
 }
 
 EMSCRIPTEN_KEEPALIVE
+int sa_reflection_effect_create(void* ctx, int sample_rate, int frame_size,
+                                int num_channels, void** out_effect)
+{
+    if (!ctx || !out_effect || num_channels < 1) return 1;
+    IPLAudioSettings audio;
+    IPLReflectionEffectSettings settings;
+    memset(&audio, 0, sizeof(audio));
+    memset(&settings, 0, sizeof(settings));
+    audio.samplingRate = sample_rate;
+    audio.frameSize = frame_size;
+    settings.type = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
+    settings.irSize = frame_size;
+    settings.numChannels = num_channels;
+    IPLerror error = iplReflectionEffectCreate(
+        (IPLContext)ctx, &audio, &settings, (IPLReflectionEffect*)out_effect);
+    return error == IPL_STATUS_SUCCESS ? 0 : (int)error;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_reflection_effect_release(void* effect)
+{
+    if (effect) iplReflectionEffectRelease((IPLReflectionEffect*)&effect);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_reflection_effect_apply(void* effect,
+                               const float* reverb_times,
+                               const float* in_buffer, float* out_buffer,
+                               int num_samples)
+{
+    if (!effect || !reverb_times || !in_buffer || !out_buffer || num_samples <= 0)
+        return 1;
+    float* input_channels[1] = { (float*)in_buffer };
+    float* output_channels[1] = { out_buffer };
+    IPLAudioBuffer input = { 1, num_samples, input_channels };
+    IPLAudioBuffer output = { 1, num_samples, output_channels };
+    IPLReflectionEffectParams params;
+    memset(&params, 0, sizeof(params));
+    params.type = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
+    params.numChannels = 1;
+    params.irSize = num_samples;
+    for (int band = 0; band < IPL_NUM_BANDS; ++band)
+        params.reverbTimes[band] = reverb_times[band];
+    return (int)iplReflectionEffectApply(
+        (IPLReflectionEffect)effect, &params, &input, &output, NULL);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_reflection_effect_get_tail(void* effect, float* out_buffer,
+                                  int num_samples)
+{
+    if (!effect || !out_buffer || num_samples <= 0) return 0;
+    float* output_channels[1] = { out_buffer };
+    IPLAudioBuffer output = { 1, num_samples, output_channels };
+    return (int)iplReflectionEffectGetTail(
+        (IPLReflectionEffect)effect, &output, NULL);
+}
+
+EMSCRIPTEN_KEEPALIVE
 int sa_simulator_create(void* ctx, void* scene,
                         int sample_rate, int frame_size,
                         int max_sources, int max_occlusion_samples,
+                        int reflections_enabled,
+                        int max_rays, int diffuse_samples,
+                        float max_duration, int max_order,
+                        int reflection_threads,
                         void** out_sim)
 {
     if (!ctx || !out_sim) return 1;
     IPLSimulationSettings settings;
     memset(&settings, 0, sizeof(settings));
-    settings.flags = IPL_SIMULATIONFLAGS_DIRECT;
+    settings.flags = IPL_SIMULATIONFLAGS_DIRECT
+        | (reflections_enabled ? IPL_SIMULATIONFLAGS_REFLECTIONS : 0);
     settings.sceneType = IPL_SCENETYPE_DEFAULT;
     settings.reflectionType = IPL_REFLECTIONEFFECTTYPE_PARAMETRIC;
     settings.maxNumOcclusionSamples = max_occlusion_samples;
+    settings.maxNumRays = max_rays;
+    settings.numDiffuseSamples = diffuse_samples;
+    settings.maxDuration = max_duration;
+    settings.maxOrder = max_order;
     settings.maxNumSources = max_sources;
-    settings.numThreads = 1;
+    settings.numThreads = reflection_threads;
     settings.samplingRate = sample_rate;
     settings.frameSize = frame_size;
     IPLerror error = iplSimulatorCreate((IPLContext)ctx, &settings, (IPLSimulator*)out_sim);
@@ -417,10 +485,21 @@ int sa_simulator_run_direct(void* sim)
 }
 
 EMSCRIPTEN_KEEPALIVE
+int sa_simulator_run_reflections(void* sim)
+{
+    if (!sim) return 1;
+    iplSimulatorRunReflections((IPLSimulator)sim);
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
 void sa_simulator_set_listener(void* sim,
                                float x, float y, float z,
                                float ahead_x, float ahead_y, float ahead_z,
-                               float up_x, float up_y, float up_z)
+                               float up_x, float up_y, float up_z,
+                               int reflection_rays, int reflection_bounces,
+                               float reflection_duration, int reflection_order,
+                               float irradiance_min_distance)
 {
     if (!sim) return;
     IPLSimulationSharedInputs inputs;
@@ -433,18 +512,26 @@ void sa_simulator_set_listener(void* sim,
         ahead_z * up_x - ahead_x * up_z,
         ahead_x * up_y - ahead_y * up_x
     };
-    iplSimulatorSetSharedInputs((IPLSimulator)sim, IPL_SIMULATIONFLAGS_DIRECT, &inputs);
+    inputs.numRays = reflection_rays;
+    inputs.numBounces = reflection_bounces;
+    inputs.duration = reflection_duration;
+    inputs.order = reflection_order;
+    inputs.irradianceMinDistance = irradiance_min_distance;
+    iplSimulatorSetSharedInputs(
+        (IPLSimulator)sim,
+        IPL_SIMULATIONFLAGS_DIRECT | IPL_SIMULATIONFLAGS_REFLECTIONS,
+        &inputs);
 }
 
 EMSCRIPTEN_KEEPALIVE
-int sa_source_create(void* sim, void** out_source)
+int sa_source_create(void* sim, int simulation_flags, void** out_source)
 {
     if (!sim || !out_source) return 1;
     SASource* source = (SASource*)calloc(1, sizeof(SASource));
     if (!source) return (int)IPL_STATUS_OUTOFMEMORY;
     IPLSourceSettings settings;
     memset(&settings, 0, sizeof(settings));
-    settings.flags = IPL_SIMULATIONFLAGS_DIRECT;
+    settings.flags = (IPLSimulationFlags)simulation_flags;
     IPLerror error = iplSourceCreate((IPLSimulator)sim, &settings, &source->handle);
     if (error != IPL_STATUS_SUCCESS) {
         free(source);
@@ -485,7 +572,9 @@ void sa_source_set_inputs(void* source_ptr,
                           const float* air_curves,
                           float dipole_weight, float dipole_power,
                           int occlusion_type, float occlusion_radius,
-                          int occlusion_samples, int transmission_rays)
+                          int occlusion_samples, int transmission_rays,
+                          int reflections_enabled,
+                          const float* reverb_scale)
 {
     SASource* source = (SASource*)source_ptr;
     if (!source || !source->handle) return;
@@ -515,7 +604,8 @@ void sa_source_set_inputs(void* source_ptr,
 
     IPLSimulationInputs inputs;
     memset(&inputs, 0, sizeof(inputs));
-    inputs.flags = IPL_SIMULATIONFLAGS_DIRECT;
+    inputs.flags = IPL_SIMULATIONFLAGS_DIRECT
+        | (reflections_enabled > 0 ? IPL_SIMULATIONFLAGS_REFLECTIONS : 0);
     inputs.directFlags = (IPLDirectSimulationFlags)direct_flags;
     inputs.source.origin = (IPLVector3){ x, y, z };
     inputs.source.ahead = (IPLVector3){ ahead_x, ahead_y, ahead_z };
@@ -561,10 +651,42 @@ void sa_source_set_inputs(void* source_ptr,
     inputs.occlusionRadius = occlusion_radius;
     inputs.numOcclusionSamples = occlusion_samples;
     inputs.numTransmissionRays = transmission_rays;
-    inputs.reverbScale[0] = 1.0f;
-    inputs.reverbScale[1] = 1.0f;
-    inputs.reverbScale[2] = 1.0f;
-    iplSourceSetInputs(source->handle, IPL_SIMULATIONFLAGS_DIRECT, &inputs);
+    for (int band = 0; band < IPL_NUM_BANDS; ++band)
+        inputs.reverbScale[band] = reverb_scale ? reverb_scale[band] : 1.0f;
+    IPLSimulationFlags update_flags = IPL_SIMULATIONFLAGS_DIRECT;
+    if (reflections_enabled >= 0)
+        update_flags = (IPLSimulationFlags)(
+            update_flags | IPL_SIMULATIONFLAGS_REFLECTIONS);
+    iplSourceSetInputs(source->handle, update_flags, &inputs);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_source_set_reflection_inputs(void* source_ptr,
+                                     float x, float y, float z,
+                                     float ahead_x, float ahead_y, float ahead_z,
+                                     float up_x, float up_y, float up_z,
+                                     int enabled,
+                                     const float* reverb_scale)
+{
+    SASource* source = (SASource*)source_ptr;
+    if (!source || !source->handle) return;
+    IPLSimulationInputs inputs;
+    memset(&inputs, 0, sizeof(inputs));
+    inputs.flags = enabled ? IPL_SIMULATIONFLAGS_REFLECTIONS : 0;
+    inputs.source.origin = (IPLVector3){ x, y, z };
+    inputs.source.ahead = (IPLVector3){ ahead_x, ahead_y, ahead_z };
+    inputs.source.up = (IPLVector3){ up_x, up_y, up_z };
+    inputs.source.right = (IPLVector3){
+        ahead_y * up_z - ahead_z * up_y,
+        ahead_z * up_x - ahead_x * up_z,
+        ahead_x * up_y - ahead_y * up_x
+    };
+    inputs.distanceAttenuationModel.type = IPL_DISTANCEATTENUATIONTYPE_DEFAULT;
+    inputs.airAbsorptionModel.type = IPL_AIRABSORPTIONTYPE_DEFAULT;
+    for (int band = 0; band < IPL_NUM_BANDS; ++band)
+        inputs.reverbScale[band] = reverb_scale ? reverb_scale[band] : 1.0f;
+    iplSourceSetInputs(
+        source->handle, IPL_SIMULATIONFLAGS_REFLECTIONS, &inputs);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -589,6 +711,21 @@ int sa_source_get_direct_outputs(void* source_ptr,
         if (out_transmission)
             out_transmission[band] = outputs.direct.transmission[band];
     }
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_source_get_reflection_outputs(void* source_ptr,
+                                     float* out_reverb_times)
+{
+    SASource* source = (SASource*)source_ptr;
+    if (!source || !source->handle || !out_reverb_times) return 1;
+    IPLSimulationOutputs outputs;
+    memset(&outputs, 0, sizeof(outputs));
+    iplSourceGetOutputs(
+        source->handle, IPL_SIMULATIONFLAGS_REFLECTIONS, &outputs);
+    for (int band = 0; band < IPL_NUM_BANDS; ++band)
+        out_reverb_times[band] = outputs.reflections.reverbTimes[band];
     return 0;
 }
 

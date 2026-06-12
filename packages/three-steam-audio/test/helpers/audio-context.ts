@@ -3,6 +3,21 @@ export interface FakeAudioContext {
   modules: string[]
 }
 
+class FakeGainNode {
+  connections: unknown[] = []
+  disconnections: unknown[] = []
+  gain = { value: 1 }
+
+  connect(destination: unknown): unknown {
+    this.connections.push(destination)
+    return destination
+  }
+
+  disconnect(destination?: unknown): void {
+    this.disconnections.push(destination)
+  }
+}
+
 export class FakePort {
   closed = false
   messages: unknown[] = []
@@ -17,9 +32,9 @@ export class FakePort {
 }
 
 export class FakeAudioWorkletNode {
-  connections: unknown[] = []
+  connections: unknown[][] = []
   context: AudioContext
-  disconnections: unknown[] = []
+  disconnections: unknown[][] = []
   name: string
   options: unknown
   port = new FakePort()
@@ -34,13 +49,13 @@ export class FakeAudioWorkletNode {
     this.options = options
   }
 
-  connect(destination: unknown): unknown {
-    this.connections.push(destination)
+  connect(destination: unknown, output?: number, input?: number): unknown {
+    this.connections.push([destination, output, input])
     return destination
   }
 
-  disconnect(destination: unknown): void {
-    this.disconnections.push(destination)
+  disconnect(destination?: unknown, output?: number, input?: number): void {
+    this.disconnections.push([destination, output, input])
   }
 }
 
@@ -53,6 +68,7 @@ export const createAudioContext = (): FakeAudioContext => {
           modules.push(url.href)
         },
       },
+      createGain: () => new FakeGainNode() as unknown as GainNode,
       destination: { name: 'destination' } as unknown as AudioNode,
       sampleRate: 48_000,
       state: 'running',

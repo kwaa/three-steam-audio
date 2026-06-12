@@ -6,6 +6,14 @@ import { getRegisteredProcessor } from './helpers/audio-worklet.ts'
 
 import '../dist/steam-audio-processor.js'
 
+interface BusProcessorInstance {
+  port: {
+    onmessage?: (event: MessageEvent) => void
+  }
+  process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
+  wet: number
+}
+
 interface ProcessorInstance {
   dispose: () => void
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
@@ -45,14 +53,40 @@ describe('steamAudioProcessor', () => {
       input[index] = Math.sin(index / 10)
     const first = [new Float32Array(128), new Float32Array(128)]
     const second = [new Float32Array(128), new Float32Array(128)]
+    const firstReflections = [new Float32Array(128), new Float32Array(128)]
+    const secondReflections = [new Float32Array(128), new Float32Array(128)]
+    const firstReverb = [new Float32Array(128), new Float32Array(128)]
+    const secondReverb = [new Float32Array(128), new Float32Array(128)]
 
-    expect(processor.process([[input]], [first])).toBe(true)
+    expect(processor.process([[input]], [first, firstReflections, firstReverb])).toBe(true)
     expect([...first[0]]).toEqual([...new Float32Array(128)])
-    expect(processor.process([[input]], [second])).toBe(true)
+    expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(true)
     expect(second[0].every(Number.isFinite)).toBe(true)
     expect(second[1].every(Number.isFinite)).toBe(true)
+    expect(secondReflections[0].every(Number.isFinite)).toBe(true)
+    expect(secondReverb[0].every(Number.isFinite)).toBe(true)
 
     processor.dispose()
-    expect(processor.process([[input]], [second])).toBe(false)
+    expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
+  })
+
+  it('sanitizes invalid bus wet values at the worklet boundary', () => {
+    const Processor = getRegisteredProcessor<new (
+      options: { processorOptions: { wet: number } },
+    ) => BusProcessorInstance>('steam-audio-bus-processor')
+    const processor = new Processor({
+      processorOptions: { wet: Number.NaN },
+    })
+    expect(processor.wet).toBe(1)
+
+    processor.port.onmessage?.({
+      data: { type: 'wet', value: -1 },
+    } as MessageEvent)
+    expect(processor.wet).toBe(1)
+
+    const input = [new Float32Array([0.25, -0.5])]
+    const output = [new Float32Array(2)]
+    expect(processor.process([input], [output])).toBe(true)
+    expect([...output[0]]).toEqual([0.25, -0.5])
   })
 })

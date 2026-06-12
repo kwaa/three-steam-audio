@@ -17,6 +17,12 @@ export type {
   Listener,
   QualityPreset,
   QuaternionLike,
+  ReflectionBusSettings,
+  ReflectionConnection,
+  ReflectionSettings,
+  ReverbBusSettings,
+  ReverbConnection,
+  ReverbSettings,
   RuntimeSimulationSettings,
   SimulationSettings,
   Source,
@@ -29,5 +35,9 @@ export type {
   Vector3Like,
   WorldOptions,
 } from './types'
-export { SteamAudioNode } from './worker/audio-node'
+export {
+  ReflectionBusNode,
+  ReverbBusNode,
+  SteamAudioNode,
+} from './worker/audio-node'
 export { detectCapabilities } from './worker/runtime'

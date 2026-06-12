@@ -12,6 +12,11 @@ import type {
   DynamicMeshInput,
   Listener,
   QuaternionLike,
+  ReflectionBusSettings,
+  ReflectionSettings,
+  ReverbBusSettings,
+  ReverbSettings,
+  RuntimeSimulationSettings,
   Source,
   SourceSettings,
   StaticMeshInput,
@@ -23,7 +28,11 @@ import type { NativeModule } from './native'
 
 import { Quaternion, Matrix4 as ThreeMatrix4, Vector3 } from 'three'
 
-import { SteamAudioNode } from '../worker/audio-node'
+import { ReflectionBusNode, ReverbBusNode, SteamAudioNode } from '../worker/audio-node'
+import {
+  canUseReflectionWorker,
+  ReflectionSimulationWorker,
+} from '../worker/reflection-simulation'
 import { prepareWorldRuntime } from '../worker/runtime'
 import { assertNativeStatus, SteamAudioError } from './errors'
 import {
@@ -45,10 +54,13 @@ const DIRECT_AIR = 1 << 1
 const DIRECT_DIRECTIVITY = 1 << 2
 const DIRECT_OCCLUSION = 1 << 3
 const DIRECT_TRANSMISSION = 1 << 4
+const SIMULATION_DIRECT = 1 << 0
+const SIMULATION_REFLECTIONS = 1 << 1
 
 const DEFAULT_FRAME_SIZE = 1024
 const DEFAULT_MAX_SOURCES = 32
 const DEFAULT_SIMULATION_RATE = 60
+const DEFAULT_REFLECTION_RATE = 10
 const DEFAULT_MAX_OCCLUSION_SAMPLES = 128
 const QUALITY_MAX_OCCLUSION_SAMPLES = {
   high: 256,
@@ -59,6 +71,20 @@ const QUALITY_MAX_OCCLUSION_SAMPLES = {
 const ahead = new Vector3()
 const up = new Vector3()
 const orientationScratch = new Quaternion()
+
+export interface NormalizedReflectionSimulationSettings {
+  bounces: number
+  diffuseSamples: number
+  duration: number
+  enabled: boolean
+  irradianceMinDistance: number
+  maxDuration: number
+  maxOrder: number
+  maxRays: number
+  order: number
+  rays: number
+  threads: number
+}
 
 interface NativeMesh {
   dispose: () => void
@@ -72,6 +98,7 @@ interface NormalizedSourceSettings {
   directSimulation: DirectSimulationSettings
   distanceAttenuation: DistanceAttenuationSettings | false
   hrtf: boolean
+  reflections: Required<Pick<ReflectionSettings, 'enabled' | 'reverbScale' | 'wet'>>
   spatialBlend: number
 }
 
@@ -107,6 +134,26 @@ const directionsFromQuaternion = (value: QuaternionLike): [Vector3, Vector3] => 
   return [ahead, up]
 }
 
+const normalizeReflectionSettings = (
+  settings: SourceSettings['reflections'],
+): NormalizedSourceSettings['reflections'] => {
+  const input = settings === true
+    ? {}
+    : settings === false || settings === undefined
+      ? undefined
+      : settings
+  const reverbScale = input?.reverbScale ?? [1, 1, 1]
+  reverbScale.forEach((value, band) => {
+    if (!Number.isFinite(value) || value < 0)
+      throw new RangeError(`reflections.reverbScale[${band}] must be a finite number >= 0`)
+  })
+  return {
+    enabled: input?.enabled ?? (settings === true || input !== undefined),
+    reverbScale,
+    wet: clampUnit('reflections.wet', input?.wet ?? 1),
+  }
+}
+
 const normalizeSettings = (
   settings: SourceSettings = {},
   maximumOcclusionSamples = DEFAULT_MAX_OCCLUSION_SAMPLES,
@@ -140,6 +187,7 @@ const normalizeSettings = (
       ? { model: 'default' }
       : settings.distanceAttenuation,
     hrtf: settings.hrtf ?? true,
+    reflections: normalizeReflectionSettings(settings.reflections),
     spatialBlend: clampUnit('spatialBlend', settings.spatialBlend ?? 1),
   }
 
@@ -233,21 +281,43 @@ const airModel = (settings: AirAbsorptionSettings | undefined) => {
   }
 }
 
+const directEffectFlags = (
+  settings: NormalizedSourceSettings,
+  overrides: DirectOverrides | null,
+): number => {
+  const direct = settings.directSimulation
+  let flags = 0
+  if (settings.distanceAttenuation !== false || overrides?.distanceAttenuation !== undefined)
+    flags |= DIRECT_DISTANCE
+  if (direct.airAbsorption === true || overrides?.airAbsorption !== undefined)
+    flags |= DIRECT_AIR
+  if (settings.directivity.dipoleWeight > 0 || overrides?.directivity !== undefined)
+    flags |= DIRECT_DIRECTIVITY
+  if (direct.occlusion !== false || overrides?.occlusion !== undefined)
+    flags |= DIRECT_OCCLUSION
+  if (direct.transmission !== false || overrides?.transmission !== undefined)
+    flags |= DIRECT_TRANSMISSION
+  return flags
+}
+
 export type World = Pick<
   WorldImpl,
   | 'audioContext'
   | 'createNode'
+  | 'createReflectionBus'
+  | 'createReverbBus'
   | 'createSource'
   | 'dispose'
   | 'listener'
   | 'scene'
-  | 'setSimulationSettings'
+  | 'setReflectionSettings'
   | 'step'
 >
 
 class AcousticSceneImpl implements AcousticScene {
   #dirty = false
   readonly #handles = new Set<NativeMesh>()
+  #nextReflectionMeshId = 1
   readonly #pendingReleases: Array<() => void> = []
   readonly #world: WorldImpl
 
@@ -258,13 +328,15 @@ class AcousticSceneImpl implements AcousticScene {
   addDynamicMesh(input: DynamicMeshInput): DynamicAcousticMeshHandle {
     this.#world.assertActive('AcousticScene.addDynamicMesh')
     const transform = splitDynamicTransform(input.matrixWorld)
+    const reflectionMeshId = this.#nextReflectionMeshId++
     let currentRigidMatrix = transform.rigidMatrix.clone()
     const subScene = createHandle(this.#world.module, 'iplSceneCreate', out =>
       this.#world.module._sa_scene_create(this.#world.context, out))
     let staticMesh = 0
     let instance = 0
     try {
-      staticMesh = this.#createStaticMesh(subScene, input, transform.bakedMatrix)
+      const created = this.#createStaticMesh(subScene, input, transform.bakedMatrix)
+      staticMesh = created.native
       this.#world.module._sa_static_mesh_add(staticMesh, subScene)
       this.#world.module._sa_scene_commit(subScene)
       instance = createHandle(this.#world.module, 'iplInstancedMeshCreate', out =>
@@ -275,6 +347,12 @@ class AcousticSceneImpl implements AcousticScene {
             matrixPointer,
             out,
           )))
+      this.#world.reflectionWorker?.addDynamicMesh(
+        reflectionMeshId,
+        created.converted,
+        Array.isArray(input.material) ? input.material.length : 1,
+        transform.rigidMatrix,
+      )
     }
     catch (error) {
       if (staticMesh !== 0)
@@ -290,6 +368,7 @@ class AcousticSceneImpl implements AcousticScene {
           return
         disposed = true
         this.#world.module._sa_instanced_mesh_remove(instance, this.#world.sceneHandle)
+        this.#world.reflectionWorker?.removeMesh(reflectionMeshId)
         this.#pendingReleases.push(() => {
           this.#world.module._sa_instanced_mesh_release(instance)
           this.#world.module._sa_static_mesh_release(staticMesh)
@@ -311,6 +390,7 @@ class AcousticSceneImpl implements AcousticScene {
             this.#world.sceneHandle,
             pointer,
           ))
+        this.#world.reflectionWorker?.updateDynamicMesh(reflectionMeshId, rigid)
         this.#dirty = true
       },
     }
@@ -320,8 +400,15 @@ class AcousticSceneImpl implements AcousticScene {
 
   addStaticMesh(input: StaticMeshInput): AcousticMeshHandle {
     this.#world.assertActive('AcousticScene.addStaticMesh')
-    const mesh = this.#createStaticMesh(this.#world.sceneHandle, input, input.matrixWorld)
+    const reflectionMeshId = this.#nextReflectionMeshId++
+    const created = this.#createStaticMesh(this.#world.sceneHandle, input, input.matrixWorld)
+    const mesh = created.native
     this.#world.module._sa_static_mesh_add(mesh, this.#world.sceneHandle)
+    this.#world.reflectionWorker?.addStaticMesh(
+      reflectionMeshId,
+      created.converted,
+      Array.isArray(input.material) ? input.material.length : 1,
+    )
     this.#dirty = true
     let disposed = false
     const handle: NativeMesh = {
@@ -330,6 +417,7 @@ class AcousticSceneImpl implements AcousticScene {
           return
         disposed = true
         this.#world.module._sa_static_mesh_remove(mesh, this.#world.sceneHandle)
+        this.#world.reflectionWorker?.removeMesh(reflectionMeshId)
         this.#pendingReleases.push(() => this.#world.module._sa_static_mesh_release(mesh))
         this.#handles.delete(handle)
         this.#dirty = true
@@ -345,6 +433,7 @@ class AcousticSceneImpl implements AcousticScene {
       return
     this.#world.module._sa_scene_commit(this.#world.sceneHandle)
     this.#world.module._sa_simulator_commit(this.#world.simulator)
+    this.#world.reflectionWorker?.commitScene()
     this.#dirty = false
     for (const release of this.#pendingReleases.splice(0))
       release()
@@ -361,10 +450,10 @@ class AcousticSceneImpl implements AcousticScene {
     scene: number,
     input: Pick<StaticMeshInput, 'geometry' | 'material'>,
     matrixWorld: Matrix4 = new ThreeMatrix4(),
-  ): number {
+  ): { converted: ReturnType<typeof convertGeometry>, native: number } {
     const converted = convertGeometry(input.geometry, input.material, matrixWorld)
     const materialCount = Array.isArray(input.material) ? input.material.length : 1
-    return createHandle(this.#world.module, 'iplStaticMeshCreate', out =>
+    const native = createHandle(this.#world.module, 'iplStaticMeshCreate', out =>
       withFloatArray(this.#world.module, converted.vertices, vertices =>
         withIntArray(this.#world.module, converted.indices, indices =>
           withFloatArray(this.#world.module, converted.absorption, absorption =>
@@ -384,6 +473,7 @@ class AcousticSceneImpl implements AcousticScene {
                     materialIndices,
                     out,
                   ))))))))
+    return { converted, native }
   }
 }
 
@@ -404,6 +494,10 @@ class ListenerImpl implements Listener {
     this.setTransform(position, this.orientation)
   }
 
+  setReverb(settings: false | ReverbSettings): void {
+    this.#world.setListenerReverb(settings)
+  }
+
   setTransform(position: Vector3Like, orientation: QuaternionLike): void {
     this.#world.assertActive('Listener.setTransform')
     this.position.set(position.x, position.y, position.z)
@@ -420,7 +514,19 @@ class ListenerImpl implements Listener {
       listenerUp.x,
       listenerUp.y,
       listenerUp.z,
+      this.#world.reflectionSettings.rays,
+      this.#world.reflectionSettings.bounces,
+      this.#world.reflectionSettings.duration,
+      this.#world.reflectionSettings.order,
+      this.#world.reflectionSettings.irradianceMinDistance,
     )
+    this.#world.reflectionWorker?.setListener(
+      [this.position.x, this.position.y, this.position.z],
+      [listenerAhead.x, listenerAhead.y, listenerAhead.z],
+      [listenerUp.x, listenerUp.y, listenerUp.z],
+      this.#world.reflectionSettings,
+    )
+    this.#world.syncListenerReverbSource()
   }
 }
 
@@ -429,6 +535,10 @@ class SourceImpl implements Source {
   readonly nodes = new Set<SteamAudioNode>()
   get native(): number {
     return this.#native
+  }
+
+  get reflectionOutputs(): readonly [number, number, number] {
+    return this.#reflectionOutputs
   }
 
   get settings(): NormalizedSourceSettings {
@@ -447,8 +557,10 @@ class SourceImpl implements Source {
   }
 
   readonly #outputsPointer: number
+
   #overrides: DirectOverrides | null = null
   readonly #position = new Vector3()
+  #reflectionOutputs: [number, number, number] = [0, 0, 0]
 
   #settings: NormalizedSourceSettings
 
@@ -459,9 +571,15 @@ class SourceImpl implements Source {
     this.id = id
     this.#settings = normalizeSettings(settings, world.maxOcclusionSamples)
     this.#native = createHandle(world.module, 'iplSourceCreate', out =>
-      world.module._sa_source_create(world.simulator, out))
-    this.#outputsPointer = world.module._malloc(9 * 4)
+      world.module._sa_source_create(
+        world.simulator,
+        SIMULATION_DIRECT
+        | (world.mainThreadReflections ? SIMULATION_REFLECTIONS : 0),
+        out,
+      ))
+    this.#outputsPointer = world.module._malloc(12 * 4)
     this.#syncInputs()
+    world.reflectionWorker?.addSource(this.#reflectionWorkerInput())
   }
 
   assertActive(operation: string): void {
@@ -477,6 +595,7 @@ class SourceImpl implements Source {
       node.dispose()
     this.#disposed = true
     this.#world.module._sa_source_release(this.#native, this.#world.simulator)
+    this.#world.reflectionWorker?.removeSource(this.id)
     this.#world.module._free(this.#outputsPointer)
     this.#world.removeSource(this)
   }
@@ -501,20 +620,6 @@ class SourceImpl implements Source {
   publishControl(): void {
     const direct = this.#settings.directSimulation
     const overrides = this.#overrides
-    let effectFlags = 0
-    const occlusionSimulated = direct.occlusion !== false && direct.occlusion !== undefined
-    const transmissionSimulated = direct.transmission !== false && direct.transmission !== undefined
-    if (this.#settings.distanceAttenuation !== false || overrides?.distanceAttenuation !== undefined)
-      effectFlags |= DIRECT_DISTANCE
-    if (direct.airAbsorption === true || overrides?.airAbsorption !== undefined)
-      effectFlags |= DIRECT_AIR
-    if (this.#settings.directivity.dipoleWeight > 0 || overrides?.directivity !== undefined)
-      effectFlags |= DIRECT_DIRECTIVITY
-    if (occlusionSimulated || overrides?.occlusion !== undefined)
-      effectFlags |= DIRECT_OCCLUSION
-    if (transmissionSimulated || overrides?.transmission !== undefined)
-      effectFlags |= DIRECT_TRANSMISSION
-
     const result = this.#outputs
     const direction = this.#position.clone().sub(this.#world.listenerImpl.position)
     if (direction.lengthSq() < 1e-12)
@@ -527,9 +632,15 @@ class SourceImpl implements Source {
         direction: [direction.x, direction.y, direction.z],
         directivity: overrides?.directivity ?? result.directivity,
         distanceAttenuation: overrides?.distanceAttenuation ?? result.distanceAttenuation,
-        effectFlags,
+        effectFlags: directEffectFlags(this.#settings, overrides),
         hrtf: this.#settings.hrtf,
         occlusion: overrides?.occlusion ?? result.occlusion,
+        reflectionReverbTimes: this.#reflectionOutputs,
+        reflectionWet: this.#settings.reflections.enabled
+          ? this.#settings.reflections.wet
+          : 0,
+        reverbReverbTimes: this.#world.listenerReverbTimes,
+        reverbWet: this.#world.listenerReverbEnabled ? 1 : 0,
         spatialBlend: this.#settings.spatialBlend,
         transmission: overrides?.transmission ?? result.transmission,
         transmissionType: direct.transmission !== false
@@ -563,6 +674,25 @@ class SourceImpl implements Source {
     this.publishControl()
   }
 
+  readReflectionOutputs(): readonly [number, number, number] {
+    assertNativeStatus(
+      'iplSourceGetReflectionOutputs',
+      this.#world.module._sa_source_get_reflection_outputs(
+        this.#native,
+        this.#outputsPointer + 36,
+      ),
+    )
+    const heap = this.#world.module.HEAPF32
+    const offset = (this.#outputsPointer + 36) >>> 2
+    this.#reflectionOutputs = [
+      heap[offset],
+      heap[offset + 1],
+      heap[offset + 2],
+    ]
+    this.publishControl()
+    return this.#reflectionOutputs
+  }
+
   setDirectOverrides(overrides: DirectOverrides | null): void {
     this.assertActive('Source.setDirectOverrides')
     if (overrides) {
@@ -587,6 +717,11 @@ class SourceImpl implements Source {
     this.setTransform(position, this.#orientation)
   }
 
+  setReflectionOutputs(outputs: readonly [number, number, number]): void {
+    this.#reflectionOutputs = [...outputs]
+    this.publishControl()
+  }
+
   setSettings(settings: Partial<SourceSettings>): void {
     this.assertActive('Source.setSettings')
     const current: SourceSettings = {
@@ -594,6 +729,7 @@ class SourceImpl implements Source {
       directSimulation: this.#settings.directSimulation,
       distanceAttenuation: this.#settings.distanceAttenuation,
       hrtf: this.#settings.hrtf,
+      reflections: this.#settings.reflections,
       spatialBlend: this.#settings.spatialBlend,
     }
     const nextDirectSimulation = settings.directSimulation === false
@@ -604,15 +740,33 @@ class SourceImpl implements Source {
             ...settings.directSimulation,
           }
         : settings.directSimulation ?? current.directSimulation
-    this.#settings = normalizeSettings({
+    const nextReflections = settings.reflections === false
+      ? false
+      : settings.reflections === true
+        ? {
+            ...this.#settings.reflections,
+            enabled: true,
+          }
+        : typeof settings.reflections === 'object'
+          ? {
+              ...this.#settings.reflections,
+              ...settings.reflections,
+            }
+          : current.reflections
+    const nextSettings = normalizeSettings({
       ...current,
       ...settings,
       directivity: settings.directivity
         ? { ...this.#settings.directivity, ...settings.directivity }
         : current.directivity,
       directSimulation: nextDirectSimulation,
+      reflections: nextReflections,
     }, this.#world.maxOcclusionSamples)
+    if (nextSettings.reflections.enabled && !this.#world.reflectionSettings.enabled)
+      throw new Error('Source reflections require World reflections to be enabled')
+    this.#settings = nextSettings
     this.#syncInputs()
+    this.#world.reflectionWorker?.updateSource(this.#reflectionWorkerInput())
     this.publishControl()
   }
 
@@ -621,6 +775,19 @@ class SourceImpl implements Source {
     this.#position.set(position.x, position.y, position.z)
     this.#orientation.copy(normalizeQuaternion(orientation))
     this.#syncInputs()
+    this.#world.reflectionWorker?.updateSource(this.#reflectionWorkerInput())
+  }
+
+  #reflectionWorkerInput() {
+    const [sourceAhead, sourceUp] = directionsFromQuaternion(this.#orientation)
+    return {
+      ahead: [sourceAhead.x, sourceAhead.y, sourceAhead.z] as const,
+      enabled: this.#settings.reflections.enabled,
+      id: this.id,
+      position: [this.#position.x, this.#position.y, this.#position.z] as const,
+      reverbScale: this.#settings.reflections.reverbScale,
+      up: [sourceUp.x, sourceUp.y, sourceUp.z] as const,
+    }
   }
 
   #syncInputs(): void {
@@ -644,35 +811,40 @@ class SourceImpl implements Source {
     withOptionalFloatArray(this.#world.module, distance.curve, distancePointer =>
       withOptionalFloatArray(this.#world.module, air.coefficients, coefficientPointer =>
         withOptionalFloatArray(this.#world.module, air.curves, airPointer =>
-          this.#world.module._sa_source_set_inputs(
-            this.#native,
-            this.#position.x,
-            this.#position.y,
-            this.#position.z,
-            sourceAhead.x,
-            sourceAhead.y,
-            sourceAhead.z,
-            sourceUp.x,
-            sourceUp.y,
-            sourceUp.z,
-            flags,
-            distance.model,
-            distance.minimum,
-            distance.maximum,
-            distance.curve?.length ?? 0,
-            distancePointer,
-            air.model,
-            coefficientPointer,
-            air.maximum,
-            air.samples,
-            airPointer,
-            settings.directivity.dipoleWeight,
-            settings.directivity.dipolePower,
-            direct.occlusion === 'volumetric' ? 1 : 0,
-            direct.occlusionRadius ?? 1,
-            direct.occlusion === 'volumetric' ? direct.occlusionSamples ?? 16 : 1,
-            direct.transmission !== false && direct.transmission !== undefined ? 1 : 0,
-          ))))
+          withFloatArray(this.#world.module, settings.reflections.reverbScale, reverbScalePointer =>
+            this.#world.module._sa_source_set_inputs(
+              this.#native,
+              this.#position.x,
+              this.#position.y,
+              this.#position.z,
+              sourceAhead.x,
+              sourceAhead.y,
+              sourceAhead.z,
+              sourceUp.x,
+              sourceUp.y,
+              sourceUp.z,
+              flags,
+              distance.model,
+              distance.minimum,
+              distance.maximum,
+              distance.curve?.length ?? 0,
+              distancePointer,
+              air.model,
+              coefficientPointer,
+              air.maximum,
+              air.samples,
+              airPointer,
+              settings.directivity.dipoleWeight,
+              settings.directivity.dipolePower,
+              direct.occlusion === 'volumetric' ? 1 : 0,
+              direct.occlusionRadius ?? 1,
+              direct.occlusion === 'volumetric' ? direct.occlusionSamples ?? 16 : 1,
+              direct.transmission !== false && direct.transmission !== undefined ? 1 : 0,
+              this.#world.mainThreadReflections
+                ? settings.reflections.enabled ? 1 : 0
+                : -1,
+              reverbScalePointer,
+            )))))
   }
 }
 
@@ -682,15 +854,25 @@ export class WorldImpl {
   readonly frameSize: number
   readonly listener: Listener
   readonly listenerImpl: ListenerImpl
+  listenerReverbEnabled = false
+  listenerReverbTimes: [number, number, number] = [0, 0, 0]
+  readonly mainThreadReflections: boolean
   readonly maxOcclusionSamples: number
   readonly maxSources: number
   readonly module: NativeModule
+  readonly reflectionSettings: NormalizedReflectionSimulationSettings
+  readonly reflectionWorker?: ReflectionSimulationWorker
   readonly scene: AcousticSceneImpl
   readonly sceneHandle: number
   readonly simulator: number
   #accumulator = 0
   #disposed = false
+  #listenerReverbSource?: SourceImpl
   #nextSourceId = 1
+  #reflectionAccumulator = 0
+  readonly #reflectionBuses = new Set<ReflectionBusNode>()
+  readonly #reflectionInterval: number
+  readonly #reverbBuses = new Set<ReverbBusNode>()
   readonly #simulationInterval: number
   readonly #sources = new Set<SourceImpl>()
   readonly #wasmBinary: ArrayBuffer
@@ -710,6 +892,55 @@ export class WorldImpl {
       'simulationRate',
       options.simulationRate ?? DEFAULT_SIMULATION_RATE,
     )
+    this.#reflectionInterval = 1 / positive(
+      'reflectionRate',
+      options.reflectionRate ?? DEFAULT_REFLECTION_RATE,
+    )
+    const reflectionOptions = options.reflections === false
+      ? undefined
+      : options.reflections
+    const maxRays = integer(
+      'reflections.maxRays',
+      reflectionOptions?.maxRays ?? options.simulation?.maxRays ?? 4096,
+    )
+    const maxDuration = positive(
+      'reflections.maxDuration',
+      reflectionOptions?.maxDuration ?? options.simulation?.maxDuration ?? 2,
+    )
+    const maxOrder = integer(
+      'reflections.maxOrder',
+      reflectionOptions?.maxOrder ?? options.simulation?.maxOrder ?? 1,
+      0,
+    )
+    const diffuseSamples = integer(
+      'reflections.diffuseSamples',
+      reflectionOptions?.diffuseSamples
+      ?? options.simulation?.diffuseSamples
+      ?? 32,
+    )
+    const reflectionThreads = integer(
+      'reflections.threads',
+      reflectionOptions?.threads
+      ?? options.simulation?.reflectionThreads
+      ?? 1,
+    )
+    this.reflectionSettings = {
+      bounces: 8,
+      diffuseSamples,
+      duration: maxDuration,
+      enabled: reflectionOptions !== undefined,
+      irradianceMinDistance: 1,
+      maxDuration,
+      maxOrder,
+      maxRays,
+      order: maxOrder,
+      rays: maxRays,
+      threads: reflectionThreads,
+    }
+    const useReflectionWorker = this.reflectionSettings.enabled
+      && canUseReflectionWorker()
+    this.mainThreadReflections = this.reflectionSettings.enabled
+      && !useReflectionWorker
 
     this.context = createHandle(this.module, 'iplContextCreate', out =>
       this.module._sa_context_create(out))
@@ -723,8 +954,14 @@ export class WorldImpl {
             this.sceneHandle,
             this.audioContext.sampleRate,
             this.frameSize,
-            this.maxSources,
+            this.maxSources + 1,
             this.maxOcclusionSamples,
+            this.mainThreadReflections ? 1 : 0,
+            maxRays,
+            diffuseSamples,
+            maxDuration,
+            maxOrder,
+            reflectionThreads,
             out,
           ))
       }
@@ -736,6 +973,16 @@ export class WorldImpl {
     catch (error) {
       this.module._sa_context_release(this.context)
       throw error
+    }
+    if (useReflectionWorker) {
+      this.reflectionWorker = new ReflectionSimulationWorker(
+        this.#wasmBinary,
+        this.audioContext.sampleRate,
+        this.frameSize,
+        this.maxSources + 1,
+        this.reflectionSettings,
+        outputs => this.#receiveReflectionOutputs(outputs),
+      )
     }
     this.scene = new AcousticSceneImpl(this)
     this.listenerImpl = new ListenerImpl(this)
@@ -764,11 +1011,41 @@ export class WorldImpl {
     return node
   }
 
+  createReflectionBus(settings?: ReflectionBusSettings): ReflectionBusNode {
+    this.assertActive('World.createReflectionBus')
+    if (!this.reflectionSettings.enabled)
+      throw new Error('Reflections are disabled for this World')
+    const bus = new ReflectionBusNode(
+      this.audioContext,
+      settings,
+      disposed => this.#reflectionBuses.delete(disposed),
+    )
+    this.#reflectionBuses.add(bus)
+    return bus
+  }
+
+  createReverbBus(settings?: ReverbBusSettings): ReverbBusNode {
+    this.assertActive('World.createReverbBus')
+    if (!this.reflectionSettings.enabled)
+      throw new Error('Reflections are disabled for this World')
+    const bus = new ReverbBusNode(
+      this.audioContext,
+      settings,
+      disposed => this.#reverbBuses.delete(disposed),
+    )
+    this.#reverbBuses.add(bus)
+    return bus
+  }
+
   createSource(settings?: SourceSettings): Source {
     this.assertActive('World.createSource')
     if (this.#sources.size >= this.maxSources)
       throw new SteamAudioError('World.createSource', `maxSources (${this.maxSources}) exceeded`)
     const source = new SourceImpl(this, this.#nextSourceId++, settings)
+    if (source.settings.reflections.enabled && !this.reflectionSettings.enabled) {
+      source.dispose()
+      throw new Error('Source reflections require World reflections to be enabled')
+    }
     this.#sources.add(source)
     return source
   }
@@ -778,7 +1055,13 @@ export class WorldImpl {
       return
     for (const source of [...this.#sources])
       source.dispose()
+    this.#listenerReverbSource?.dispose()
+    for (const bus of [...this.#reflectionBuses])
+      bus.dispose()
+    for (const bus of [...this.#reverbBuses])
+      bus.dispose()
     this.scene.dispose()
+    this.reflectionWorker?.dispose()
     this.#disposed = true
     this.module._sa_simulator_release(this.simulator)
     this.module._sa_scene_release(this.sceneHandle)
@@ -789,9 +1072,70 @@ export class WorldImpl {
     this.#sources.delete(source)
   }
 
-  setSimulationSettings(): void {
-    this.assertActive('World.setSimulationSettings')
-    throw new Error('Runtime reflection simulation settings are not part of the MVP')
+  setListenerReverb(settings: false | ReverbSettings): void {
+    this.assertActive('Listener.setReverb')
+    if (settings !== false && !this.reflectionSettings.enabled)
+      throw new Error('Reflections are disabled for this World')
+    this.listenerReverbEnabled = settings !== false && (settings.enabled ?? true)
+    if (this.listenerReverbEnabled && !this.#listenerReverbSource) {
+      this.#listenerReverbSource = new SourceImpl(this, 0, {
+        directSimulation: false,
+        reflections: {
+          enabled: true,
+          reverbScale: settings === false
+            ? [1, 1, 1]
+            : settings.reverbScale,
+        },
+      })
+    }
+    else if (this.#listenerReverbSource && settings !== false) {
+      this.#listenerReverbSource.setSettings({
+        reflections: {
+          enabled: this.listenerReverbEnabled,
+          reverbScale: settings.reverbScale,
+        },
+      })
+    }
+    else if (this.#listenerReverbSource) {
+      this.#listenerReverbSource.setSettings({ reflections: false })
+    }
+    this.syncListenerReverbSource()
+    for (const source of this.#sources)
+      source.publishControl()
+  }
+
+  setReflectionSettings(settings: RuntimeSimulationSettings): void {
+    this.assertActive('World.setReflectionSettings')
+    if (settings.rays !== undefined) {
+      const rays = integer('rays', settings.rays)
+      if (rays > this.reflectionSettings.maxRays)
+        throw new RangeError(`rays cannot exceed World maxRays (${this.reflectionSettings.maxRays})`)
+      this.reflectionSettings.rays = rays
+    }
+    if (settings.bounces !== undefined)
+      this.reflectionSettings.bounces = integer('bounces', settings.bounces)
+    if (settings.duration !== undefined) {
+      const duration = positive('duration', settings.duration)
+      if (duration > this.reflectionSettings.maxDuration)
+        throw new RangeError(`duration cannot exceed World maxDuration (${this.reflectionSettings.maxDuration})`)
+      this.reflectionSettings.duration = duration
+    }
+    if (settings.order !== undefined) {
+      const order = integer('order', settings.order, 0)
+      if (order > this.reflectionSettings.maxOrder)
+        throw new RangeError(`order cannot exceed World maxOrder (${this.reflectionSettings.maxOrder})`)
+      this.reflectionSettings.order = order
+    }
+    if (settings.irradianceMinDistance !== undefined) {
+      this.reflectionSettings.irradianceMinDistance = positive(
+        'irradianceMinDistance',
+        settings.irradianceMinDistance,
+      )
+    }
+    this.listenerImpl.setTransform(
+      this.listenerImpl.position,
+      this.listenerImpl.orientation,
+    )
   }
 
   step(delta: number): void {
@@ -800,6 +1144,36 @@ export class WorldImpl {
       throw new RangeError('World.step delta must be a finite number >= 0')
     if (this.audioContext.state !== 'running')
       return
+    this.#runDirectSimulation(delta)
+    this.#runReflectionSimulation(delta)
+  }
+
+  syncListenerReverbSource(): void {
+    this.#listenerReverbSource?.setTransform(
+      this.listenerImpl.position,
+      this.listenerImpl.orientation,
+    )
+  }
+
+  #receiveReflectionOutputs(
+    outputs: Array<{
+      id: number
+      reverbTimes: [number, number, number]
+    }>,
+  ): void {
+    for (const output of outputs) {
+      if (output.id === 0) {
+        this.listenerReverbTimes = output.reverbTimes
+        continue
+      }
+      const source = [...this.#sources].find(value => value.id === output.id)
+      source?.setReflectionOutputs(output.reverbTimes)
+    }
+    for (const source of this.#sources)
+      source.publishControl()
+  }
+
+  #runDirectSimulation(delta: number): void {
     this.#accumulator += delta
     while (this.#accumulator >= this.#simulationInterval) {
       this.#accumulator -= this.#simulationInterval
@@ -807,6 +1181,42 @@ export class WorldImpl {
       for (const source of this.#sources)
         source.readOutputs()
     }
+  }
+
+  #runReflectionSimulation(delta: number): void {
+    if (!this.reflectionSettings.enabled)
+      return
+    this.#reflectionAccumulator += delta
+    while (this.#reflectionAccumulator >= this.#reflectionInterval) {
+      this.#reflectionAccumulator -= this.#reflectionInterval
+      const hasSourceReflections = [...this.#sources]
+        .some(source => source.settings.reflections.enabled)
+      if (!hasSourceReflections && !this.listenerReverbEnabled)
+        continue
+      if (this.reflectionWorker) {
+        this.reflectionWorker.run()
+        continue
+      }
+      this.#runReflectionsNow()
+    }
+  }
+
+  #runReflectionsNow(): void {
+    assertNativeStatus(
+      'iplSimulatorRunReflections',
+      this.module._sa_simulator_run_reflections(this.simulator),
+    )
+    for (const source of this.#sources) {
+      if (source.settings.reflections.enabled)
+        source.readReflectionOutputs()
+    }
+    if (!this.#listenerReverbSource)
+      return
+    this.listenerReverbTimes = [
+      ...this.#listenerReverbSource.readReflectionOutputs(),
+    ]
+    for (const source of this.#sources)
+      source.publishControl()
   }
 }
 

@@ -9,6 +9,11 @@ export type {
   SteamAudioContextValue,
   SteamAudioProps,
 } from './context'
+export {
+  SteamAudioEnvironment,
+  useSteamAudioEnvironment,
+} from './environment'
+export type { SteamAudioEnvironmentProps } from './environment'
 export { SteamAudioListener } from './listener'
 export type { SteamAudioListenerProps } from './listener'
 export { AcousticMesh } from './mesh'

@@ -8,7 +8,12 @@ import type {
   DynamicAcousticMeshHandle,
 } from '../types'
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+} from 'react'
 
 import { useInternalContext } from './context'
 import { setForwardedRef } from './shared'
@@ -117,4 +122,5 @@ export const AcousticMesh = ({
 
   return <group {...groupProps} ref={setGroupRef} />
 }
+
 AcousticMesh.displayName = 'AcousticMesh'

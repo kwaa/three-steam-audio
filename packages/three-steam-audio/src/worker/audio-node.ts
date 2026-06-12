@@ -1,6 +1,12 @@
-import type { Source } from '../types'
+import type {
+  ReflectionBusSettings,
+  ReflectionConnection,
+  ReverbBusSettings,
+  ReverbConnection,
+  Source,
+} from '../types'
 
-const CONTROL_VALUE_COUNT = 15
+const CONTROL_VALUE_COUNT = 23
 
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
@@ -10,6 +16,10 @@ export interface NodeControlValues {
   effectFlags: number
   hrtf: boolean
   occlusion: number
+  reflectionReverbTimes: readonly [number, number, number]
+  reflectionWet: number
+  reverbReverbTimes: readonly [number, number, number]
+  reverbWet: number
   spatialBlend: number
   transmission: readonly [number, number, number]
   transmissionType: number
@@ -32,6 +42,83 @@ const AudioWorkletNodeBase = (
   globalThis.AudioWorkletNode ?? MissingAudioWorkletNode
 )
 
+const validateGain = (value: number): number => {
+  if (!Number.isFinite(value) || value < 0)
+    throw new RangeError('gain must be a finite number >= 0')
+  return value
+}
+
+const disposeWorkletNode = (
+  node: InstanceType<typeof AudioWorkletNodeBase>,
+  onDispose: () => void,
+): void => {
+  try {
+    node.disconnect()
+  }
+  catch {}
+  node.port.postMessage({ type: 'dispose' })
+  node.port.close()
+  onDispose()
+}
+
+interface BusNodeOptions {
+  onDispose: (node: SteamAudioBusNode) => void
+  wet: number
+}
+
+class SteamAudioBusNode extends AudioWorkletNodeBase {
+  #disposed = false
+  readonly #onDispose: (node: SteamAudioBusNode) => void
+
+  constructor(context: AudioContext, options: BusNodeOptions) {
+    super(context, 'steam-audio-bus-processor', {
+      channelCount: 2,
+      channelCountMode: 'clamped-max',
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      processorOptions: {
+        wet: validateGain(options.wet),
+      },
+    })
+    this.#onDispose = options.onDispose
+  }
+
+  dispose(): void {
+    if (this.#disposed)
+      return
+    this.port.postMessage({ type: 'wet', value: 0 })
+    this.#disposed = true
+    disposeWorkletNode(this, () => this.#onDispose(this))
+  }
+
+  setWet(wet: number): void {
+    if (this.#disposed)
+      return
+    this.port.postMessage({ type: 'wet', value: validateGain(wet) })
+  }
+}
+
+export class ReflectionBusNode extends SteamAudioBusNode {
+  constructor(
+    context: AudioContext,
+    settings: ReflectionBusSettings = {},
+    onDispose: (node: SteamAudioBusNode) => void = () => {},
+  ) {
+    super(context, { onDispose, wet: settings.wet ?? 1 })
+  }
+}
+
+export class ReverbBusNode extends SteamAudioBusNode {
+  constructor(
+    context: AudioContext,
+    settings: ReverbBusSettings = {},
+    onDispose: (node: SteamAudioBusNode) => void = () => {},
+  ) {
+    super(context, { onDispose, wet: settings.wet ?? 1 })
+  }
+}
+
 export class SteamAudioNode extends AudioWorkletNodeBase {
   readonly source: Source
   readonly #controlData?: Float32Array
@@ -49,8 +136,8 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
       channelCount: 2,
       channelCountMode: 'clamped-max',
       numberOfInputs: 1,
-      numberOfOutputs: 1,
-      outputChannelCount: [2],
+      numberOfOutputs: 3,
+      outputChannelCount: [2, 2, 2],
       processorOptions: {
         controlBuffer,
         frameSize: options.frameSize,
@@ -65,17 +152,25 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     }
   }
 
+  connectReflections(
+    bus: ReflectionBusNode,
+    options: { gain?: number } = {},
+  ): ReflectionConnection {
+    return this.#connectSend(bus, 1, options.gain ?? 1)
+  }
+
+  connectReverb(
+    bus: ReverbBusNode,
+    options: { gain?: number } = {},
+  ): ReverbConnection {
+    return this.#connectSend(bus, 2, options.gain ?? 1)
+  }
+
   dispose(): void {
     if (this.#disposed)
       return
     this.#disposed = true
-    try {
-      this.disconnect()
-    }
-    catch {}
-    this.port.postMessage({ type: 'dispose' })
-    this.port.close()
-    this.#onDispose(this)
+    disposeWorkletNode(this, () => this.#onDispose(this))
   }
 
   setControl(values: NodeControlValues): void {
@@ -91,6 +186,10 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     packet[12] = values.spatialBlend
     packet[13] = values.effectFlags
     packet[14] = values.hrtf ? values.transmissionType + 1 : -(values.transmissionType + 1)
+    packet.set(values.reflectionReverbTimes, 15)
+    packet[18] = values.reflectionWet
+    packet.set(values.reverbReverbTimes, 19)
+    packet[22] = values.reverbWet
 
     if (this.#controlData && this.#controlSequence) {
       Atomics.add(this.#controlSequence, 0, 1)
@@ -99,6 +198,40 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     }
     else {
       this.port.postMessage({ type: 'control', values: packet }, [packet.buffer])
+    }
+  }
+
+  #connectSend(
+    bus: ReflectionBusNode | ReverbBusNode,
+    output: number,
+    initialGain: number,
+  ): ReflectionConnection {
+    if (this.#disposed)
+      throw new Error('Cannot connect a disposed SteamAudioNode')
+    if (bus.context !== this.context)
+      throw new Error('Steam Audio send and bus must use the same AudioContext')
+    const gainNode = this.context.createGain()
+    gainNode.gain.value = validateGain(initialGain)
+    this.connect(gainNode, output, 0)
+    gainNode.connect(bus)
+    let connected = true
+    return {
+      disconnect: () => {
+        if (!connected)
+          return
+        connected = false
+        try {
+          this.disconnect(gainNode, output, 0)
+        }
+        catch {}
+        try {
+          gainNode.disconnect(bus)
+        }
+        catch {}
+      },
+      setGain: (gain: number) => {
+        gainNode.gain.value = validateGain(gain)
+      },
     }
   }
 }

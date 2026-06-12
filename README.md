@@ -1,7 +1,8 @@
 # three-steam-audio
 
-[Steam Audio](https://github.com/ValveSoftware/steam-audio) direct-path simulation and HRTF spatialization for Three.js and
-React Three Fiber.
+[Steam Audio](https://github.com/ValveSoftware/steam-audio) spatial audio,
+direct-path simulation, parametric reflections, and listener reverb for
+Three.js and React Three Fiber.
 
 ## Usage
 
@@ -42,6 +43,38 @@ world.scene.commit()
 Update listener and source world transforms before calling `world.step(delta)`.
 The application owns the render loop and the `AudioContext`.
 
+### Reflections and reverb
+
+```ts
+const world = await createWorld({
+  audioContext,
+  reflections: {
+    maxDuration: 2,
+    maxOrder: 1,
+    maxRays: 4096,
+  },
+})
+
+const reflections = world.createReflectionBus({ wet: 1 })
+const reverb = world.createReverbBus({ wet: 0.5 })
+reflections.connect(audioContext.destination)
+reverb.connect(audioContext.destination)
+
+const source = world.createSource({
+  reflections: { wet: 0.7 },
+})
+const node = world.createNode(source)
+node.connectReflections(reflections, { gain: 1 })
+node.connectReverb(reverb, { gain: 0.4 })
+
+world.listener.setReverb({ reverbScale: [1, 1, 1] })
+```
+
+Reflection ray tracing runs in a dedicated worker when `Worker` is available.
+The current browser renderer uses Steam Audio's parametric reflection effect.
+Convolution and hybrid reflection effects are not supported because their
+opaque IR handles cannot cross independent WASM runtimes.
+
 ### React Three Fiber
 
 ```tsx
@@ -49,17 +82,29 @@ import { Materials } from 'three-steam-audio'
 import {
   AcousticMesh,
   SteamAudio,
+  SteamAudioEnvironment,
   SteamAudioListener,
   SteamAudioSource,
 } from 'three-steam-audio/react'
 
 <React.Suspense fallback={null}>
-  <SteamAudio audioContext={audioContext}>
+  <SteamAudio
+    audioContext={audioContext}
+    options={{ reflections: { maxRays: 4096 } }}
+  >
     <SteamAudioListener />
-    <AcousticMesh material={Materials.concrete}>
-      <mesh geometry={roomGeometry} />
-    </AcousticMesh>
-    <SteamAudioSource input={input} position={[0, 1, -2]} />
+    <SteamAudioEnvironment reverb={{ wet: 0.5 }}>
+      <AcousticMesh material={Materials.concrete}>
+        <mesh geometry={roomGeometry} />
+      </AcousticMesh>
+      <SteamAudioSource
+        input={input}
+        position={[0, 1, -2]}
+        reflections={{ wet: 0.7 }}
+        reflectionSend={1}
+        reverbSend={0.4}
+      />
+    </SteamAudioEnvironment>
   </SteamAudio>
 </React.Suspense>
 ```
@@ -92,9 +137,9 @@ pnpm test
 - [ ] Add support for custom HRTFs via SOFA files.
 - [ ] Improve direct-path usability with better validation, diagnostics, and
       browser/runtime error handling.
-- [ ] Add real-time reflections simulation.
-- [ ] Add reflection rendering and listener reverb, starting with the cheapest
-      runtime effect chain that works well on the web.
+- [x] Add worker-based real-time parametric reflections simulation.
+- [x] Add per-source reflection rendering and listener reverb buses.
+- [ ] Add convolution or hybrid reflections through a web-safe IR transport.
 - [ ] Add pathing for moving sources and listeners without introducing baking
       workflows.
 - [ ] Add Ambisonics support.

@@ -80,6 +80,7 @@ export interface HRTFSettings { type?: 'default' }
 export interface Listener {
   setOrientation: (orientation: QuaternionLike) => void
   setPosition: (position: Vector3Like) => void
+  setReverb: (settings: false | ReverbSettings) => void
   setTransform: (position: Vector3Like, orientation: QuaternionLike) => void
 }
 
@@ -90,6 +91,32 @@ export interface QuaternionLike {
   x: number
   y: number
   z: number
+}
+
+export interface ReflectionBusSettings {
+  wet?: number
+}
+
+export interface ReflectionConnection {
+  disconnect: () => void
+  setGain: (gain: number) => void
+}
+
+export interface ReflectionSettings {
+  enabled?: boolean
+  reverbScale?: ThreeBand
+  wet?: number
+}
+
+export interface ReverbBusSettings {
+  wet?: number
+}
+
+export type ReverbConnection = ReflectionConnection
+
+export interface ReverbSettings {
+  enabled?: boolean
+  reverbScale?: ThreeBand
 }
 
 export interface RuntimeSimulationSettings {
@@ -108,7 +135,6 @@ export interface SimulationSettings {
   maxRays?: number
   pathingVisibilitySamples?: number
   rayBatchSize?: number
-  reflectionEffect?: 'convolution' | 'hybrid' | 'parametric'
   reflectionThreads?: number
 }
 
@@ -131,6 +157,7 @@ export interface SourceSettings {
   directSimulation?: boolean | DirectSimulationSettings
   distanceAttenuation?: DistanceAttenuationSettings | false
   hrtf?: boolean
+  reflections?: boolean | ReflectionSettings
   spatialBlend?: number
 }
 
@@ -173,6 +200,14 @@ export interface WorldOptions {
   maxSources?: number
   moduleFactory?: SteamAudioModuleFactory
   quality?: QualityPreset
+  reflectionRate?: number
+  reflections?: false | {
+    diffuseSamples?: number
+    maxDuration?: number
+    maxOrder?: number
+    maxRays?: number
+    threads?: number
+  }
   simulation?: SimulationSettings
   simulationRate?: number
 }

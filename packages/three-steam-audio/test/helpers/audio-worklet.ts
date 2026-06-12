@@ -1,4 +1,6 @@
 export class WorkletPort {
+  onmessage?: (event: MessageEvent) => void
+
   close() {}
   postMessage() {}
 }
@@ -7,12 +9,12 @@ export class FakeAudioWorkletProcessor {
   port = new WorkletPort()
 }
 
-let registeredProcessor: unknown
+const registeredProcessors = new Map<string, unknown>()
 
 export const registerProcessor = (name: string, implementation: unknown): void => {
-  if (name !== 'steam-audio-processor')
-    return
-  registeredProcessor = implementation
+  registeredProcessors.set(name, implementation)
 }
 
-export const getRegisteredProcessor = <T>(): T => registeredProcessor as T
+export const getRegisteredProcessor = <T>(
+  name = 'steam-audio-processor',
+): T => registeredProcessors.get(name) as T

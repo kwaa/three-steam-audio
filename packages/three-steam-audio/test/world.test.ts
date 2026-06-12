@@ -1,4 +1,4 @@
-import type { SteamAudioNode } from '../src/worker/audio-node.ts'
+import type { SteamAudioNode } from '../dist/index.js'
 import type { FakePort } from './helpers/audio-context.ts'
 
 import { BufferGeometry, Float32BufferAttribute, Matrix4, Vector3 } from 'three'
@@ -15,6 +15,29 @@ interface NativeModule {
   HEAPF32: Float32Array
   HEAPU8: Uint8Array
   HEAPU32: Uint32Array
+}
+
+class FakeWorker {
+  static readonly instances: FakeWorker[] = []
+  messages: unknown[] = []
+  onmessage?: (event: MessageEvent) => void
+  terminated = false
+
+  constructor() {
+    FakeWorker.instances.push(this)
+  }
+
+  emit(data: unknown): void {
+    this.onmessage?.({ data } as MessageEvent)
+  }
+
+  postMessage(message: unknown): void {
+    this.messages.push(message)
+  }
+
+  terminate(): void {
+    this.terminated = true
+  }
 }
 
 const createNativeModule = () => {
@@ -61,6 +84,13 @@ const createNativeModule = () => {
             return 0
           }
         }
+        if (property === '_sa_source_get_reflection_outputs') {
+          return (source: number, reverbTimes: number) => {
+            calls.push([property, source])
+            target.HEAPF32.set([1.2, 1.4, 1.6], reverbTimes >>> 2)
+            return 0
+          }
+        }
         if (typeof property === 'string' && property.startsWith('_sa_')) {
           return (...args: unknown[]) => {
             calls.push([property, ...args])
@@ -79,6 +109,7 @@ const createNativeModule = () => {
 
 describe('world', () => {
   beforeEach(() => {
+    FakeWorker.instances.length = 0
     vi.stubGlobal('fetch', async () => new Response(new Uint8Array([0, 97, 115, 109])))
   })
 
@@ -110,7 +141,7 @@ describe('world', () => {
         transmission: { type: 'frequency-dependent' },
       },
     })
-    const node = first.createNode(source) as unknown as SteamAudioNode
+    const node = first.createNode(source)
     first.step(0.01)
     expect(native.calls.filter(([name]) => name === '_sa_simulator_run_direct').length).toBe(0)
     first.step(0.01)
@@ -158,7 +189,7 @@ describe('world', () => {
         occlusion: 'raycast',
       },
     })
-    const node = world.createNode(source) as unknown as SteamAudioNode
+    const node = world.createNode(source)
     source.setSettings({ hrtf: false })
     const latestInputs = native.calls
       .filter(([name]) => name === '_sa_source_set_inputs')
@@ -193,6 +224,164 @@ describe('world', () => {
     world.dispose()
 
     vi.stubGlobal('crossOriginIsolated', false)
+  })
+
+  it('runs parametric reflections at a separate rate and exposes reflection and reverb sends', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      reflectionRate: 10,
+      reflections: {
+        maxDuration: 2,
+        maxOrder: 1,
+        maxRays: 4096,
+      },
+    })
+    const source = world.createSource({
+      reflections: {
+        reverbScale: [1, 0.8, 0.6],
+        wet: 0.7,
+      },
+    })
+    const node = world.createNode(source) as unknown as SteamAudioNode & {
+      connections: unknown[][]
+    }
+    const reflections = world.createReflectionBus({ wet: 0.9 })
+    const reverb = world.createReverbBus({ wet: 0.5 })
+    const reflectionSend = node.connectReflections(reflections, { gain: 0.4 })
+    const reverbSend = node.connectReverb(reverb, { gain: 0.2 })
+
+    expect(node.connections.map(connection => connection.slice(1))).toEqual([
+      [1, 0],
+      [2, 0],
+    ])
+    world.listener.setReverb({ reverbScale: [1, 1, 1] })
+    world.step(0.05)
+    expect(native.calls.filter(([name]) => name === '_sa_simulator_run_reflections')).toHaveLength(0)
+    world.step(0.05)
+    expect(native.calls.filter(([name]) => name === '_sa_simulator_run_reflections')).toHaveLength(1)
+
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...control.values.slice(15, 18)]).toEqual([
+      expect.closeTo(1.2),
+      expect.closeTo(1.4),
+      expect.closeTo(1.6),
+    ])
+    expect(control.values[18]).toBeCloseTo(0.7)
+    expect([...control.values.slice(19, 22)]).toEqual([
+      expect.closeTo(1.2),
+      expect.closeTo(1.4),
+      expect.closeTo(1.6),
+    ])
+    expect(control.values[22]).toBe(1)
+
+    reflectionSend.setGain(0.8)
+    reverbSend.disconnect()
+    reflectionSend.disconnect()
+    reflections.dispose()
+    reverb.dispose()
+    source.dispose()
+    world.dispose()
+  })
+
+  it('moves reflection simulation and scene mirroring to a dedicated worker when available', async () => {
+    vi.stubGlobal('Worker', FakeWorker)
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      reflections: {},
+    })
+    const worker = FakeWorker.instances[0]
+    const simulatorCreate = native.calls.find(
+      ([name]) => name === '_sa_simulator_create',
+    )
+    expect(simulatorCreate?.[7]).toBe(0)
+    const source = world.createSource({ reflections: true })
+    const sourceCreate = native.calls
+      .filter(([name]) => name === '_sa_source_create')
+      .at(-1)
+    expect(sourceCreate?.[2]).toBe(1)
+    const node = world.createNode(source)
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', new Float32BufferAttribute([
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ], 3))
+    world.scene.addStaticMesh({
+      geometry,
+      material: Materials.concrete,
+    })
+    world.scene.commit()
+    world.step(0.1)
+
+    const messageTypes = worker.messages.map((message) => {
+      if (typeof message !== 'object' || message === null || !('type' in message))
+        return undefined
+      return message.type
+    })
+    expect(messageTypes).toEqual(expect.arrayContaining([
+      'init',
+      'add-source',
+      'add-static-mesh',
+      'commit-scene',
+      'run',
+    ]))
+    expect(native.calls.filter(([name]) => name === '_sa_simulator_run_reflections')).toHaveLength(0)
+
+    worker.emit({
+      outputs: [{
+        id: source.id,
+        reverbTimes: [2, 2.5, 3],
+      }],
+      type: 'result',
+    })
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...control.values.slice(15, 18)]).toEqual([2, 2.5, 3])
+
+    source.dispose()
+    world.dispose()
+    worker.emit({ type: 'disposed' })
+    expect(worker.terminated).toBe(true)
+    vi.unstubAllGlobals()
+  })
+
+  it('surfaces structured reflection worker initialization failures on step', async () => {
+    vi.stubGlobal('Worker', FakeWorker)
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      reflections: {},
+    })
+    const worker = FakeWorker.instances[0]
+    const source = world.createSource({ reflections: true })
+    worker.emit({
+      message: 'WASM initialization failed',
+      type: 'error',
+    })
+
+    expect(() => world.step(0.1)).toThrow(/WASM initialization failed/)
+
+    source.dispose()
+    world.dispose()
+    worker.emit({ type: 'disposed' })
+    vi.unstubAllGlobals()
   })
 
   it('batches scene changes and updates rigid dynamic transforms', async () => {

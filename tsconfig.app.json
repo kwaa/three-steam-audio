@@ -2,7 +2,7 @@
   "extends": "@moeru/tsconfig",
   "compilerOptions": {
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node", "@react-three/fiber"]
   },
   "include": [
     "packages/**/src",

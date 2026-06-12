@@ -21,6 +21,7 @@ import { Quaternion, Vector3 } from 'three'
 
 import { connectManagedAudioEdges } from '../worker/audio-connections'
 import { useInternalContext } from './context'
+import { useSteamAudioEnvironment } from './environment'
 import { RenderResourceCache } from './resource-cache'
 import { setForwardedRef } from './shared'
 
@@ -95,6 +96,9 @@ export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref
   occlusion?: 'raycast' | 'volumetric' | false
   onReady?: (api: SteamAudioSourceApi) => void
   ref?: Ref<Group>
+  reflections?: SourceSettings['reflections']
+  reflectionSend?: number
+  reverbSend?: number
   settings?: SourceSettings
   spatialBlend?: number
   transmission?: 'frequency-dependent' | 'frequency-independent' | boolean
@@ -109,6 +113,9 @@ export const SteamAudioSource = ({
   occlusion,
   onReady,
   ref,
+  reflections,
+  reflectionSend,
+  reverbSend,
   settings,
   spatialBlend,
   transmission,
@@ -116,6 +123,7 @@ export const SteamAudioSource = ({
 }: SteamAudioSourceProps) => {
   const groupRef = useRef<Group>(null)
   const { world } = useInternalContext('SteamAudioSource')
+  const environment = useSteamAudioEnvironment()
   const mergedSettings = useMemo<SourceSettings>(() => {
     const direct = typeof settings?.directSimulation === 'object'
       ? settings.directSimulation
@@ -142,9 +150,10 @@ export const SteamAudioSource = ({
       directivity: directivity ?? settings?.directivity,
       directSimulation,
       hrtf: hrtf ?? settings?.hrtf,
+      reflections: reflections ?? settings?.reflections,
       spatialBlend: spatialBlend ?? settings?.spatialBlend,
     }
-  }, [airAbsorption, directivity, hrtf, occlusion, settings, spatialBlend, transmission])
+  }, [airAbsorption, directivity, hrtf, occlusion, reflections, settings, spatialBlend, transmission])
   const api = useSteamAudioSource(groupRef, mergedSettings)
 
   const setGroupRef = useCallback((group: Group | null) => {
@@ -160,6 +169,27 @@ export const SteamAudioSource = ({
     return connectManagedAudioEdges(input, api.node, output)
   }, [api.node, destination, input, world.audioContext.destination])
 
+  useEffect(() => {
+    if (!environment.reflectionBus || reflectionSend === undefined)
+      return
+    const connection = api.node.connectReflections(
+      environment.reflectionBus,
+      { gain: reflectionSend },
+    )
+    return () => connection.disconnect()
+  }, [api.node, environment.reflectionBus, reflectionSend])
+
+  useEffect(() => {
+    if (!environment.reverbBus || reverbSend === undefined)
+      return
+    const connection = api.node.connectReverb(
+      environment.reverbBus,
+      { gain: reverbSend },
+    )
+    return () => connection.disconnect()
+  }, [api.node, environment.reverbBus, reverbSend])
+
   return <group {...groupProps} ref={setGroupRef} />
 }
+
 SteamAudioSource.displayName = 'SteamAudioSource'
