@@ -4,51 +4,105 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    '@antfu/eslint-config':
+      specifier: ^9.0.0
+      version: 9.0.0
+    '@eslint-react/eslint-plugin':
+      specifier: ^5.6.0
+      version: 5.8.17
+    '@moeru/eslint-config':
+      specifier: 0.1.0-beta.18
+      version: 0.1.0-beta.18
+    '@moeru/tsconfig':
+      specifier: ^0.1.0-beta.18
+      version: 0.1.0-beta.18
+    '@react-three/fiber':
+      specifier: ^9.6.1
+      version: 9.6.1
+    '@types/emscripten':
+      specifier: ^1.41.5
+      version: 1.41.5
+    '@types/node':
+      specifier: ^25.9.2
+      version: 25.9.2
+    '@types/react':
+      specifier: ^19.2.17
+      version: 19.2.17
+    '@types/react-dom':
+      specifier: ^19.2.3
+      version: 19.2.3
+    '@types/three':
+      specifier: ^0.184.1
+      version: 0.184.1
+    eslint:
+      specifier: ^10.3.0
+      version: 10.4.1
+    eslint-plugin-react-refresh:
+      specifier: ^0.5.2
+      version: 0.5.2
+    react:
+      specifier: ^19.2.7
+      version: 19.2.7
+    three:
+      specifier: ^0.184.0
+      version: 0.184.0
+    tsdown:
+      specifier: ^0.22.2
+      version: 0.22.2
+    typescript:
+      specifier: ^6.0.3
+      version: 6.0.3
+    vitest:
+      specifier: ^4.1.8
+      version: 4.1.8
+
 importers:
 
   .:
     devDependencies:
       '@antfu/eslint-config':
-        specifier: ^9.0.0
+        specifier: 'catalog:'
         version: 9.0.0(@eslint-react/eslint-plugin@5.8.17(eslint@10.4.1)(typescript@6.0.3))(@typescript-eslint/rule-tester@8.61.0(eslint@10.4.1)(typescript@6.0.3))(@typescript-eslint/typescript-estree@8.61.0(typescript@6.0.3))(@typescript-eslint/utils@8.61.0(eslint@10.4.1)(typescript@6.0.3))(@vue/compiler-sfc@3.5.35)(eslint-plugin-react-refresh@0.5.2(eslint@10.4.1))(eslint@10.4.1)(typescript@6.0.3)(vitest@4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0)))
       '@eslint-react/eslint-plugin':
-        specifier: ^5.6.0
+        specifier: 'catalog:'
         version: 5.8.17(eslint@10.4.1)(typescript@6.0.3)
       '@moeru/eslint-config':
-        specifier: 0.1.0-beta.18
+        specifier: 'catalog:'
         version: 0.1.0-beta.18(@antfu/eslint-config@9.0.0(@eslint-react/eslint-plugin@5.8.17(eslint@10.4.1)(typescript@6.0.3))(@typescript-eslint/rule-tester@8.61.0(eslint@10.4.1)(typescript@6.0.3))(@typescript-eslint/typescript-estree@8.61.0(typescript@6.0.3))(@typescript-eslint/utils@8.61.0(eslint@10.4.1)(typescript@6.0.3))(@vue/compiler-sfc@3.5.35)(eslint-plugin-react-refresh@0.5.2(eslint@10.4.1))(eslint@10.4.1)(typescript@6.0.3)(vitest@4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0))))(eslint@10.4.1)(typescript@6.0.3)
       '@moeru/tsconfig':
-        specifier: 0.1.0-beta.18
+        specifier: 'catalog:'
         version: 0.1.0-beta.18
       '@react-three/fiber':
-        specifier: ^9.6.1
+        specifier: 'catalog:'
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0)
       '@types/node':
-        specifier: ^25.9.2
+        specifier: 'catalog:'
         version: 25.9.2
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       '@types/react-dom':
-        specifier: ^19.2.3
+        specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.17)
       '@types/three':
-        specifier: ^0.184.1
+        specifier: 'catalog:'
         version: 0.184.1
       eslint:
-        specifier: ^10.3.0
+        specifier: 'catalog:'
         version: 10.4.1
       eslint-plugin-react-refresh:
-        specifier: ^0.5.2
+        specifier: 'catalog:'
         version: 0.5.2(eslint@10.4.1)
       tsdown:
-        specifier: ^0.22.2
+        specifier: 'catalog:'
         version: 0.22.2(typescript@6.0.3)
       typescript:
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vitest:
-        specifier: ^4.1.8
+        specifier: 'catalog:'
         version: 4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0))
 
   packages/three-steam-audio:
@@ -58,22 +112,22 @@ importers:
         version: 19.2.7(react@19.2.7)
     devDependencies:
       '@react-three/fiber':
-        specifier: ^9.6.1
+        specifier: 'catalog:'
         version: 9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0)
       '@types/emscripten':
-        specifier: ^1.41.5
+        specifier: 'catalog:'
         version: 1.41.5
       '@types/react':
-        specifier: ^19.2.17
+        specifier: 'catalog:'
         version: 19.2.17
       '@types/three':
-        specifier: ^0.184.1
+        specifier: 'catalog:'
         version: 0.184.1
       react:
-        specifier: ^19.2.7
+        specifier: 'catalog:'
         version: 19.2.7
       three:
-        specifier: ^0.184.0
+        specifier: 'catalog:'
         version: 0.184.0
 
 packages:
