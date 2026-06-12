@@ -59,6 +59,8 @@ const prepareRuntime = async (
   return { module, wasmBinary }
 }
 
+// The cached promise identity must remain stable for React use().
+/* eslint-disable ts/promise-function-async */
 export const getPreparedRuntimePromise = (
   audioContext: AudioContext,
   moduleFactory: SteamAudioModuleFactory = defaultModuleFactory,
@@ -75,6 +77,7 @@ export const getPreparedRuntimePromise = (
   }
   return promise
 }
+/* eslint-enable ts/promise-function-async */
 
 export const prepareWorldRuntime = async (
   options: WorldOptions,

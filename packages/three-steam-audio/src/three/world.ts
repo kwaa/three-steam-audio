@@ -526,6 +526,7 @@ class ListenerImpl implements Listener {
       this.#world.reflectionSettings,
     )
     this.#world.syncListenerReverbSource()
+    this.#world.publishSourceControls()
   }
 }
 
@@ -625,6 +626,9 @@ class SourceImpl implements Source {
       direction.set(0, 0, -1)
     else
       direction.normalize()
+    direction.applyQuaternion(
+      this.#world.listenerImpl.orientation.clone().invert(),
+    )
     for (const node of this.nodes) {
       node.setControl({
         airAbsorption: overrides?.airAbsorption ?? result.airAbsorption,
@@ -775,6 +779,7 @@ class SourceImpl implements Source {
     this.#orientation.copy(normalizeQuaternion(orientation))
     this.#syncInputs()
     this.#world.reflectionWorker?.updateSource(this.#reflectionWorkerInput())
+    this.publishControl()
   }
 
   #reflectionWorkerInput() {
@@ -1058,6 +1063,11 @@ export class WorldImpl {
     this.module._sa_simulator_release(this.simulator)
     this.module._sa_scene_release(this.sceneHandle)
     this.module._sa_context_release(this.context)
+  }
+
+  publishSourceControls(): void {
+    for (const source of this.#sources)
+      source.publishControl()
   }
 
   removeSource(source: SourceImpl): void {

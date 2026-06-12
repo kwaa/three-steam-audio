@@ -146,6 +146,11 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     })
     this.source = options.source
     this.#onDispose = options.onDispose
+    this.port.onmessage = ({ data }: MessageEvent<{ message?: unknown, type: string }>) => {
+      if (data.type !== 'error')
+        return
+      console.error(`Steam Audio worklet failed: ${String(data.message)}`)
+    }
     if (controlBuffer) {
       this.#controlSequence = new Int32Array(controlBuffer, 0, 1)
       this.#controlData = new Float32Array(controlBuffer, 4, CONTROL_VALUE_COUNT)

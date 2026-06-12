@@ -31,7 +31,10 @@ const createHandle = (module, create) => {
 const getRuntime = (wasmBinary, frameSize) => {
   let promise = runtimePromises.get(frameSize)
   if (!promise) {
-    promise = createSteamAudioModule({ wasmBinary }).then((module) => {
+    promise = createSteamAudioModule({
+      locateFile: path => path,
+      wasmBinary,
+    }).then((module) => {
       const context = createHandle(module, out => module._sa_context_create(out))
       const hrtf = createHandle(module, out =>
         module._sa_hrtf_create(context, sampleRate, frameSize, out))
@@ -151,6 +154,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.reflectionTimesPointer = allocate(module, 3 * 4)
     this.reverbTimesPointer = allocate(module, 3 * 4)
     this.ready = true
+    this.port.postMessage({ type: 'ready' })
   }
 
   process(inputs, outputs) {
@@ -217,19 +221,27 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       2,
       this.frameSize,
     )
+    const directOffset = this.directPointer >>> 2
+    const monoOffset = this.monoPointer >>> 2
+    for (let index = 0; index < this.frameSize; index++) {
+      heap[monoOffset + index] = 0.5 * (
+        heap[directOffset + index]
+        + heap[directOffset + this.frameSize + index]
+      )
+    }
     module._sa_binaural_effect_apply(
       this.binauralEffect,
+      this.runtime.hrtf,
       this.control[9],
       this.control[10],
       this.control[11],
       this.control[12],
-      this.directPointer,
+      this.monoPointer,
       this.outputPointer,
-      2,
+      1,
       this.frameSize,
     )
 
-    const monoOffset = this.monoPointer >>> 2
     const reflectionTimesOffset = this.reflectionTimesPointer >>> 2
     const reverbTimesOffset = this.reverbTimesPointer >>> 2
     for (let index = 0; index < this.frameSize; index++) {
@@ -273,7 +285,6 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
 
     const targetMix = hrtf ? 1 : 0
     const mixStep = 1 / (sampleRate * 0.02)
-    const directOffset = this.directPointer >>> 2
     const outputOffset = this.outputPointer >>> 2
     const reflectionOffset = this.reflectionPointer >>> 2
     const reverbOffset = this.reverbPointer >>> 2

@@ -3,6 +3,12 @@ import { BvhPhysicsBody, PrototypeBox } from '@react-three/viverse'
 import { Materials } from 'three-steam-audio'
 import { AcousticMesh } from 'three-steam-audio/react'
 
+const wallMaterial = {
+  absorption: [0.08, 0.05, 0.03],
+  scattering: 0.1,
+  transmission: [0.12, 0.035, 0.008],
+} as const
+
 export const Environment = () => {
   return (
     <>
@@ -11,15 +17,16 @@ export const Environment = () => {
       <ambientLight intensity={1} />
       <BvhPhysicsBody>
         <AcousticMesh material={Materials.concrete}>
-          <PrototypeBox position={[0, -0.5, 0]} scale={[100, 1, 100]} />
-
-          <PrototypeBox color="#cccccc" position={[3.91, 0, 0]} scale={[2, 1, 3]} />
-          <PrototypeBox color="#ffccff" position={[2.92, 1.5, -1.22]} scale={[3, 1, 3]} />
-          <PrototypeBox color="#ccffff" position={[1.92, 2.5, -3.22]} scale={[2, 0.5, 3]} />
-          <PrototypeBox color="#ffccff" position={[-2.92, 0, -2.22]} scale={[2, 1, 3]} />
-          <PrototypeBox color="#ccffff" position={[0.08, -1, 0]} scale={[1, 1, 4]} />
-          <PrototypeBox color="#ffffcc" position={[0.08, 3.5, 0]} scale={[4, 1, 1]} />
-          <PrototypeBox color="#ffffff" position={[0.08, -2, 0]} scale={[10, 0.5, 10]} />
+          <PrototypeBox color="#b8b8b8" position={[0, -0.25, 0]} scale={[16, 0.5, 12]} />
+          <PrototypeBox color="#8aa0aa" position={[0, 4.25, 0]} scale={[16, 0.5, 12]} />
+          <PrototypeBox color="#c7a6a6" position={[-8.25, 2, 0]} scale={[0.5, 4, 12]} />
+          <PrototypeBox color="#a6b8c7" position={[8.25, 2, 0]} scale={[0.5, 4, 12]} />
+          <PrototypeBox color="#b7a6c7" position={[0, 2, -6.25]} scale={[16, 4, 0.5]} />
+          <PrototypeBox color="#a6c7b1" position={[0, 2, 6.25]} scale={[16, 4, 0.5]} />
+        </AcousticMesh>
+        <AcousticMesh material={wallMaterial}>
+          <PrototypeBox color="#705f68" position={[0, 2, -1.5]} scale={[0.5, 4, 7]} />
+          <PrototypeBox color="#705f68" position={[0, 2, 5]} scale={[0.5, 4, 2]} />
         </AcousticMesh>
       </BvhPhysicsBody>
     </>

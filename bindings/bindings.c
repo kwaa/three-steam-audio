@@ -247,6 +247,8 @@ int sa_hrtf_create(void* ctx, int sample_rate, int frame_size, void** out_hrtf)
     audio.samplingRate = sample_rate;
     audio.frameSize = frame_size;
     settings.type = IPL_HRTFTYPE_DEFAULT;
+    settings.volume = 1.0f;
+    settings.normType = IPL_HRTFNORMTYPE_NONE;
     IPLerror error = iplHRTFCreate((IPLContext)ctx, &audio, &settings, (IPLHRTF*)out_hrtf);
     return error == IPL_STATUS_SUCCESS ? 0 : (int)error;
 }
@@ -281,13 +283,13 @@ void sa_binaural_effect_release(void* effect)
 }
 
 EMSCRIPTEN_KEEPALIVE
-int sa_binaural_effect_apply(void* effect,
+int sa_binaural_effect_apply(void* effect, void* hrtf,
                              float dir_x, float dir_y, float dir_z,
                              float spatial_blend,
                              const float* in_buffer, float* out_buffer,
                              int num_channels, int num_samples)
 {
-    if (!effect || !in_buffer || !out_buffer || num_channels < 1 || num_channels > 2)
+    if (!effect || !hrtf || !in_buffer || !out_buffer || num_channels < 1 || num_channels > 2)
         return 1;
     const float* input_channels[2];
     float* output_channels[2];
@@ -307,6 +309,7 @@ int sa_binaural_effect_apply(void* effect,
         ? IPL_HRTFINTERPOLATION_BILINEAR
         : IPL_HRTFINTERPOLATION_NEAREST;
     params.spatialBlend = spatial_blend;
+    params.hrtf = (IPLHRTF)hrtf;
     iplBinauralEffectApply((IPLBinauralEffect)effect, &params, &input, &output);
     return 0;
 }

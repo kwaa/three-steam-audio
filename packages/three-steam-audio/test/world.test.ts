@@ -1,7 +1,7 @@
 import type { SteamAudioNode } from '../dist/index.js'
 import type { FakePort } from './helpers/audio-context.ts'
 
-import { BufferGeometry, Float32BufferAttribute, Matrix4, Vector3 } from 'three'
+import { BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector3 } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createWorld, Materials } from '../dist/index.js'
@@ -200,6 +200,34 @@ describe('world', () => {
     const control = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
     expect(control.values[13] & 0b10000).toBe(0b10000)
     expect(() => world.createSource()).toThrow(/maxSources/)
+    source.dispose()
+    world.dispose()
+  })
+
+  it('publishes source direction in listener-local coordinates', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+    })
+    const source = world.createSource()
+    const node = world.createNode(source)
+
+    world.listener.setOrientation(
+      new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2),
+    )
+    source.setPosition({ x: 1, y: 0, z: 0 })
+
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...control.values.slice(9, 12)]).toEqual([
+      expect.closeTo(0),
+      expect.closeTo(0),
+      expect.closeTo(1),
+    ])
+
     source.dispose()
     world.dispose()
   })

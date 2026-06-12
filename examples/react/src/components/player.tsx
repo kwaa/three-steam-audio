@@ -51,6 +51,7 @@ export const Player = () => {
       // https://pmndrs.github.io/viverse/tutorials/first-person
       cameraBehavior={inSession ? false : FirstPersonCharacterCameraBehavior}
       model={false}
+      position={[-4, 0, -2]}
       ref={playerRef}
     >
       <SnapRotateXROrigin />
