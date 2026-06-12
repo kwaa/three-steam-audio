@@ -36,6 +36,9 @@ catalogs:
     '@types/three':
       specifier: ^0.184.1
       version: 0.184.1
+    '@vitejs/plugin-react':
+      specifier: ^6.0.2
+      version: 6.0.2
     eslint:
       specifier: ^10.3.0
       version: 10.4.1
@@ -43,6 +46,9 @@ catalogs:
       specifier: ^0.5.2
       version: 0.5.2
     react:
+      specifier: ^19.2.7
+      version: 19.2.7
+    react-dom:
       specifier: ^19.2.7
       version: 19.2.7
     three:
@@ -54,6 +60,9 @@ catalogs:
     typescript:
       specifier: ^6.0.3
       version: 6.0.3
+    vite:
+      specifier: ^8.0.16
+      version: 8.0.16
     vitest:
       specifier: ^4.1.8
       version: 4.1.8
@@ -89,6 +98,9 @@ importers:
       '@types/three':
         specifier: 'catalog:'
         version: 0.184.1
+      '@vitejs/plugin-react':
+        specifier: 'catalog:'
+        version: 6.0.2(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0))
       eslint:
         specifier: 'catalog:'
         version: 10.4.1
@@ -101,9 +113,28 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vite:
+        specifier: 'catalog:'
+        version: 8.0.16(@types/node@25.9.2)(yaml@2.9.0)
       vitest:
         specifier: 'catalog:'
         version: 4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0))
+
+  examples/react:
+    dependencies:
+      react:
+        specifier: 'catalog:'
+        version: 19.2.7
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.17)
 
   packages/three-steam-audio:
     dependencies:
@@ -828,6 +859,19 @@ packages:
   '@typescript-eslint/visitor-keys@8.61.0':
     resolution: {integrity: sha512-QVLZu3ZPQEE+HICQyAMZ2yLQhxf0meY/wx6Hx14YcTNj13JB3qHlX3lJ02L3fLGHgERRH71kvYDwiXIguT3AjQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@vitejs/plugin-react@6.0.2':
+    resolution: {integrity: sha512-DlSMqo4WhThw4vB8Mpn0Woe9J+Jfq1geJ61AKW0QEgLzGMNwtIMdxbDUzLxcun8W7NbJO0e2Jg/Nxm3cCSVzzg==}
+    engines: {node: ^20.19.0 || >=22.12.0}
+    peerDependencies:
+      '@rolldown/plugin-babel': ^0.1.7 || ^0.2.0
+      babel-plugin-react-compiler: ^1.0.0
+      vite: ^8.0.0
+    peerDependenciesMeta:
+      '@rolldown/plugin-babel':
+        optional: true
+      babel-plugin-react-compiler:
+        optional: true
 
   '@vitest/eslint-plugin@1.6.20':
     resolution: {integrity: sha512-xRwWHFG0Utp6hXtbGiWk4VdKXCGdExD8kbWrrmFEiG5dk8anOJ+vbWbeOa8EbkocKQRTsx7JAWETccZiBgFp/Q==}
@@ -3009,6 +3053,11 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.61.0
       eslint-visitor-keys: 5.0.1
+
+  '@vitejs/plugin-react@6.0.2(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0))':
+    dependencies:
+      '@rolldown/pluginutils': 1.0.1
+      vite: 8.0.16(@types/node@25.9.2)(yaml@2.9.0)
 
   '@vitest/eslint-plugin@1.6.20(@typescript-eslint/eslint-plugin@8.61.0(@typescript-eslint/parser@8.61.0(eslint@10.4.1)(typescript@6.0.3))(eslint@10.4.1)(typescript@6.0.3))(eslint@10.4.1)(typescript@6.0.3)(vitest@4.1.8(@types/node@25.9.2)(vite@8.0.16(@types/node@25.9.2)(yaml@2.9.0)))':
     dependencies:

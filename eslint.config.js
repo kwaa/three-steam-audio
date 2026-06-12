@@ -3,6 +3,11 @@ import { defineConfig } from '@moeru/eslint-config'
 export default defineConfig(
   { react: true },
   {
+    rules: {
+      '@masknet/jsx-prefer-test-id': 'off',
+    },
+  },
+  {
     files: ['**/test/**/*.ts'],
     rules: {
       '@masknet/no-top-level': 'off',

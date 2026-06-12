@@ -25,6 +25,8 @@ words:
   - sonarjs
   - spatialization
   - tsdown
+  - vite
+  - vitejs
   - vitest
 ignoreWords: []
 import: []

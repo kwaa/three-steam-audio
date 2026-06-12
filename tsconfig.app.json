@@ -5,6 +5,7 @@
     "types": ["node", "@react-three/fiber"]
   },
   "include": [
+    "examples/**/src",
     "packages/**/src",
     "packages/**/test"
   ]
