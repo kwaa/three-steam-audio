@@ -6,6 +6,7 @@
   "packageManager": "pnpm@11.5.2",
   "scripts": {
     "build": "pnpm -r build",
+    "dev:example-react": "pnpm -F example-react dev",
     "lint": "eslint .",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
