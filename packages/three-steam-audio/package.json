@@ -4,36 +4,27 @@
   "version": "0.1.0",
   "private": true,
   "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/react/index.tsx",
-    "./wasm": "./src/bindings/phonon_bindings.wasm",
-    "./wasm-runtime": "./src/bindings/phonon_bindings.js",
-    "./worklet": "./src/worker/steam-audio-processor.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "default": "./dist/react/index.js"
+    },
+    "./wasm": "./dist/bindings/phonon_bindings.wasm",
+    "./wasm-runtime": {
+      "types": "./dist/bindings/phonon_bindings.d.ts",
+      "default": "./dist/bindings/phonon_bindings.js"
+    },
+    "./worklet": {
+      "types": "./dist/steam-audio-processor.d.ts",
+      "default": "./dist/steam-audio-processor.js"
+    }
   },
   "files": [
     "dist"
   ],
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "./react": {
-        "types": "./dist/react.d.ts",
-        "default": "./dist/react.js"
-      },
-      "./wasm": "./dist/bindings/phonon_bindings.wasm",
-      "./wasm-runtime": {
-        "types": "./dist/bindings/phonon_bindings.d.ts",
-        "default": "./dist/bindings/phonon_bindings.js"
-      },
-      "./worklet": {
-        "types": "./dist/steam-audio-processor.d.ts",
-        "default": "./dist/steam-audio-processor.js"
-      }
-    }
-  },
   "scripts": {
     "build": "tsdown",
     "test": "tsdown && vitest run",
