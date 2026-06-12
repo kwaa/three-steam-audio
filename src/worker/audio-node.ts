@@ -1,6 +1,6 @@
 import type { Source } from '../types'
 
-export const CONTROL_VALUE_COUNT = 15
+const CONTROL_VALUE_COUNT = 15
 
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
