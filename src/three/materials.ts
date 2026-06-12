@@ -1,4 +1,4 @@
-import type { AcousticMaterial } from './types'
+import type { AcousticMaterial } from '../types'
 
 const material = (
   absorption: AcousticMaterial['absorption'],

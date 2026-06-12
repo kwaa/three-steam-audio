@@ -6,10 +6,10 @@
   "packageManager": "pnpm@11.5.2",
   "exports": {
     ".": "./src/index.ts",
-    "./react": "./src/react.tsx",
+    "./react": "./src/react/index.tsx",
     "./wasm": "./src/bindings/phonon_bindings.wasm",
     "./wasm-runtime": "./src/bindings/phonon_bindings.js",
-    "./worklet": "./src/steam-audio-processor.js"
+    "./worklet": "./src/worker/steam-audio-processor.js"
   },
   "files": [
     "dist"

@@ -1,7 +1,7 @@
-export { SteamAudioNode } from './audio-node'
-export { SteamAudioError } from './errors'
-export { Materials } from './materials'
-export { detectCapabilities } from './runtime'
+export { SteamAudioError } from './three/errors'
+export { Materials } from './three/materials'
+export { createWorld } from './three/world'
+export type { World } from './three/world'
 export type {
   AcousticMaterial,
   AcousticMeshHandle,
@@ -29,5 +29,5 @@ export type {
   Vector3Like,
   WorldOptions,
 } from './types'
-export { createWorld } from './world'
-export type { World } from './world'
+export { SteamAudioNode } from './worker/audio-node'
+export { detectCapabilities } from './worker/runtime'

@@ -40,7 +40,7 @@ class FakeAudioWorkletNode {
 globalThis.AudioWorkletNode = FakeAudioWorkletNode
 globalThis.crossOriginIsolated = false
 
-const { createWorld, Materials } = await import('../dist/index.mjs')
+const { createWorld, Materials } = await import('../dist/index.js')
 
 const createNativeModule = () => {
   const memory = new ArrayBuffer(1024 * 1024)

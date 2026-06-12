@@ -15,7 +15,7 @@ import {
   matrixToRowMajor,
   rigidMatrixForScale,
   splitDynamicTransform,
-} from '../src/geometry.ts'
+} from '../src/three/geometry.ts'
 
 const concrete = {
   absorption: [0.1, 0.2, 0.3],

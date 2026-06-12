@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { connectManagedAudioEdges } from '../src/audio-connections.ts'
+import { connectManagedAudioEdges } from '../src/worker/audio-connections.ts'
 
 test('disconnects only the audio edges established by React glue', () => {
   const inputConnections = []

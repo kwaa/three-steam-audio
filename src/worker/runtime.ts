@@ -1,11 +1,11 @@
-import type { NativeModule } from './native'
+import type { NativeModule } from '../three/native'
 import type {
   SteamAudioCapabilities,
   SteamAudioModuleFactory,
   WorldOptions,
-} from './types'
+} from '../types'
 
-import createSteamAudioModule from './bindings/phonon_bindings.js'
+import createSteamAudioModule from '../bindings/phonon_bindings.js'
 
 export interface PreparedRuntime {
   module: NativeModule

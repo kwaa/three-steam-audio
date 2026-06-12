@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { RenderResourceCache } from '../src/resource-cache.ts'
+import { RenderResourceCache } from '../src/react/resource-cache.ts'
 
 const wait = delay => new Promise(resolve => setTimeout(resolve, delay))
 

@@ -1,4 +1,4 @@
-import type { Source } from './types'
+import type { Source } from '../types'
 
 export const CONTROL_VALUE_COUNT = 15
 

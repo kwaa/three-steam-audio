@@ -1,6 +1,6 @@
 import type { BufferGeometry, Matrix4 } from 'three'
 
-import type { AcousticMaterial } from './types'
+import type { AcousticMaterial } from '../types'
 
 import { Quaternion, Matrix4 as ThreeMatrix4, Vector3 } from 'three'
 

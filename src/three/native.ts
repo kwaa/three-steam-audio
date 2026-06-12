@@ -1,4 +1,4 @@
-import type { SteamAudioBindings } from './bindings/phonon_bindings.js'
+import type { SteamAudioBindings } from '../bindings/phonon_bindings.js'
 
 import { assertNativeStatus } from './errors'
 

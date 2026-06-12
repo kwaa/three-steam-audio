@@ -56,10 +56,10 @@ export class RenderResourceCache<Owner extends object, Resource> {
 
   #scheduleRelease(entry: ManagedResourceLease<Resource>): void {
     entry.timer = setTimeout(() => {
-      if (entry.references === 0) {
-        entry.dispose(entry.resource)
-        entry.remove()
-      }
+      if (entry.references !== 0)
+        return
+      entry.dispose(entry.resource)
+      entry.remove()
     }, this.#releaseDelay)
   }
 }

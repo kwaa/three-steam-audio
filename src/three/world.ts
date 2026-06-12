@@ -1,7 +1,5 @@
 import type { Matrix4 } from 'three'
 
-import type { NativeModule } from './native'
-import type { PreparedRuntime } from './runtime'
 import type {
   AcousticMeshHandle,
   AcousticScene,
@@ -19,11 +17,14 @@ import type {
   StaticMeshInput,
   Vector3Like,
   WorldOptions,
-} from './types'
+} from '../types'
+import type { PreparedRuntime } from '../worker/runtime'
+import type { NativeModule } from './native'
 
 import { Quaternion, Matrix4 as ThreeMatrix4, Vector3 } from 'three'
 
-import { SteamAudioNode } from './audio-node'
+import { SteamAudioNode } from '../worker/audio-node'
+import { prepareWorldRuntime } from '../worker/runtime'
 import { assertNativeStatus, SteamAudioError } from './errors'
 import {
   convertGeometry,
@@ -38,7 +39,6 @@ import {
   withIntArray,
   withOptionalFloatArray,
 } from './native'
-import { prepareWorldRuntime } from './runtime'
 
 const DIRECT_DISTANCE = 1 << 0
 const DIRECT_AIR = 1 << 1
