@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsdown",
     "lint": "eslint .",
-    "test": "tsdown && node test/audio-connections.test.js && node test/geometry.test.js && node test/resource-cache.test.js && node --test test/worklet.test.js test/world.test.js",
+    "test": "tsdown && vitest run",
     "typecheck": "tsc -p tsconfig.app.json --noEmit"
   },
   "peerDependencies": {
@@ -70,6 +70,7 @@
     "react": "^19.2.7",
     "three": "^0.184.0",
     "tsdown": "^0.22.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }

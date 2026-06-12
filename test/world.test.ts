@@ -1,0 +1,252 @@
+import type { SteamAudioNode } from '../src/worker/audio-node.ts'
+import type { FakePort } from './helpers/audio-context.ts'
+
+import { BufferGeometry, Float32BufferAttribute, Matrix4, Vector3 } from 'three'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { createWorld, Materials } from '../dist/index.js'
+import { createAudioContext } from './helpers/audio-context.ts'
+
+interface NativeModule {
+  [key: string]: unknown
+  _free: () => void
+  _malloc: (size: number) => number
+  HEAP32: Int32Array
+  HEAPF32: Float32Array
+  HEAPU8: Uint8Array
+  HEAPU32: Uint32Array
+}
+
+const createNativeModule = () => {
+  const memory = new ArrayBuffer(1024 * 1024)
+  const calls: [string, ...unknown[]][] = []
+  let allocation = 1024
+  let handle = 100
+  const module: NativeModule = {
+    _free() {},
+    _malloc(size: number) {
+      const pointer = allocation
+      allocation += Math.ceil(size / 8) * 8
+      return pointer
+    },
+    HEAP32: new Int32Array(memory),
+    HEAPF32: new Float32Array(memory),
+    HEAPU8: new Uint8Array(memory),
+    HEAPU32: new Uint32Array(memory),
+  }
+
+  const creates = new Set([
+    '_sa_context_create',
+    '_sa_instanced_mesh_create',
+    '_sa_scene_create',
+    '_sa_simulator_create',
+    '_sa_source_create',
+    '_sa_static_mesh_create',
+  ])
+
+  return {
+    calls,
+    module: new Proxy(module, {
+      get(target, property) {
+        if (property in target)
+          return target[property as keyof NativeModule]
+        if (property === '_sa_source_get_direct_outputs') {
+          return (source: number, distance: number, air: number, directivity: number, occlusion: number, transmission: number) => {
+            calls.push([property, source])
+            target.HEAPF32[distance >>> 2] = 0.25
+            target.HEAPF32.set([0.5, 0.6, 0.7], air >>> 2)
+            target.HEAPF32[directivity >>> 2] = 0.8
+            target.HEAPF32[occlusion >>> 2] = 0.9
+            target.HEAPF32.set([0.1, 0.2, 0.3], transmission >>> 2)
+            return 0
+          }
+        }
+        if (typeof property === 'string' && property.startsWith('_sa_')) {
+          return (...args: unknown[]) => {
+            calls.push([property, ...args])
+            if (creates.has(property)) {
+              const out = args.at(-1) as number
+              target.HEAPU32[out >>> 2] = handle++
+            }
+            return 0
+          }
+        }
+        return undefined
+      },
+    }),
+  }
+}
+
+describe('world', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', async () => new Response(new Uint8Array([0, 97, 115, 109])))
+  })
+
+  it('caches runtime preparation and advances direct simulation at the configured rate', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    let factoryCalls = 0
+    const moduleFactory = async () => {
+      factoryCalls++
+      return native.module
+    }
+
+    const first = await createWorld({
+      audioContext: audio.context,
+      moduleFactory,
+      simulationRate: 60,
+    })
+    const second = await createWorld({
+      audioContext: audio.context,
+      moduleFactory,
+    })
+    expect(factoryCalls).toBe(1)
+    expect(audio.modules.length).toBe(1)
+
+    const source = first.createSource({
+      directSimulation: {
+        airAbsorption: true,
+        occlusion: 'raycast',
+        transmission: { type: 'frequency-dependent' },
+      },
+    })
+    const node = first.createNode(source) as unknown as SteamAudioNode
+    first.step(0.01)
+    expect(native.calls.filter(([name]) => name === '_sa_simulator_run_direct').length).toBe(0)
+    first.step(0.01)
+    expect(native.calls.filter(([name]) => name === '_sa_simulator_run_direct').length).toBe(1)
+
+    expect(source.getDirectOutputs()).toEqual({
+      airAbsorption: [0.5, 0.6000000238418579, 0.699999988079071],
+      directivity: 0.800000011920929,
+      distanceAttenuation: 0.25,
+      occlusion: 0.8999999761581421,
+      transmission: [0.10000000149011612, 0.20000000298023224, 0.30000001192092896],
+    })
+    expect(((node.port as unknown) as FakePort).messages.at(-1)).toMatchObject({ type: 'control' })
+
+    source.dispose()
+    const release = native.calls.find(([name]) => name === '_sa_source_release')
+    expect(release).toBeTruthy()
+    expect(release![2]).not.toBe(0)
+    expect(((node.port as unknown) as FakePort).closed).toBe(true)
+
+    first.dispose()
+    first.dispose()
+    expect(() => first.step(0)).toThrow(/World has been disposed/)
+    second.dispose()
+  })
+
+  it('validates source capacity and transmission requirements at the JS boundary', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+
+    const world = await createWorld({
+      audioContext: audio.context,
+      maxSources: 1,
+      moduleFactory: async () => native.module,
+    })
+    expect(() => world.createSource({
+      directSimulation: {
+        occlusion: false,
+        transmission: {},
+      },
+    })).toThrow(/Transmission requires occlusion/)
+    const source = world.createSource({
+      directSimulation: {
+        airAbsorption: true,
+        occlusion: 'raycast',
+      },
+    })
+    const node = world.createNode(source) as unknown as SteamAudioNode
+    source.setSettings({ hrtf: false })
+    const latestInputs = native.calls
+      .filter(([name]) => name === '_sa_source_set_inputs')
+      .at(-1)
+    expect((latestInputs![11] as number) & 0b1010).toBe(0b1010)
+
+    source.setDirectOverrides({ transmission: [0.2, 0.3, 0.4] })
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
+    expect(control.values[13] & 0b10000).toBe(0b10000)
+    expect(() => world.createSource()).toThrow(/maxSources/)
+    source.dispose()
+    world.dispose()
+  })
+
+  it('uses sequence-locked shared control memory only on isolated pages', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    vi.stubGlobal('crossOriginIsolated', true)
+
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+    })
+    const source = world.createSource()
+    const node = world.createNode(source) as unknown as SteamAudioNode & { options: { processorOptions: { controlBuffer?: SharedArrayBuffer } } }
+    const buffer = node.options.processorOptions.controlBuffer
+    expect(buffer).toBeInstanceOf(SharedArrayBuffer)
+    const sequence = new Int32Array(buffer!, 0, 1)
+    expect(Atomics.load(sequence, 0) % 2).toBe(0)
+    expect(((node.port as unknown) as FakePort).messages.length).toBe(0)
+    source.dispose()
+    world.dispose()
+
+    vi.stubGlobal('crossOriginIsolated', false)
+  })
+
+  it('batches scene changes and updates rigid dynamic transforms', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+    })
+    const commits = () => native.calls.filter(([name]) => name === '_sa_scene_commit').length
+    const beforeStatic = commits()
+    const geometry = new BufferGeometry()
+    geometry.setAttribute('position', new Float32BufferAttribute([
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ], 3))
+
+    const staticMesh = world.scene.addStaticMesh({
+      geometry,
+      material: Materials.concrete,
+    })
+    expect(commits()).toBe(beforeStatic)
+    world.scene.commit()
+    expect(commits()).toBe(beforeStatic + 1)
+    staticMesh.dispose()
+    expect(native.calls.filter(([name]) => name === '_sa_static_mesh_release').length).toBe(0)
+    world.scene.commit()
+    expect(native.calls.filter(([name]) => name === '_sa_static_mesh_release').length).toBe(1)
+
+    const initial = new Matrix4().makeScale(2, 3, 4)
+    const dynamicMesh = world.scene.addDynamicMesh({
+      geometry,
+      material: Materials.wood,
+      matrixWorld: initial,
+    })
+    world.scene.commit()
+    const updates = () => native.calls
+      .filter(([name]) => name === '_sa_instanced_mesh_update_transform')
+      .length
+    dynamicMesh.setTransform(initial)
+    expect(updates()).toBe(0)
+    dynamicMesh.setTransform(new Matrix4().makeTranslation(1, 2, 3).scale(new Vector3(2, 3, 4)))
+    expect(updates()).toBe(1)
+    expect(() => dynamicMesh.setTransform(new Matrix4().makeScale(2, 3, 5))).toThrow(/Changing the scale/)
+    dynamicMesh.dispose()
+    world.scene.commit()
+    world.dispose()
+  })
+})
