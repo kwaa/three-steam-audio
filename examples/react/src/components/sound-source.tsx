@@ -7,11 +7,11 @@ import { SteamAudioSource } from 'three-steam-audio/react'
 export const SoundSource = ({ audioContext }: { audioContext: AudioContext }) => {
   const ref = useRef<Group>(null)
   const input = useMemo(() => {
-    const osc = audioContext.createOscillator()
-    osc.type = 'sine'
-    osc.frequency.value = 440
-    osc.start()
-    return osc
+    const audio = new Audio('/Snowfall (Looped ver.).ogg')
+    audio.crossOrigin = 'anonymous'
+    audio.loop = true
+    void audio.play()
+    return audioContext.createMediaElementSource(audio)
   }, [audioContext])
 
   useFrame(({ clock }) => {
