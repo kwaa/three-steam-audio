@@ -1,4 +1,5 @@
 import type { ThreeElements } from '@react-three/fiber'
+import type { Ref } from 'react'
 import type { Group, Mesh } from 'three'
 
 import type { World } from '../three/world'
@@ -7,7 +8,7 @@ import type {
   DynamicAcousticMeshHandle,
 } from '../types'
 
-import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
 
 import { useInternalContext } from './context'
 import { setForwardedRef } from './shared'
@@ -18,6 +19,7 @@ export interface AcousticMeshProps extends Omit<ThreeElements['group'], 'ref'> {
     | ((mesh: Mesh) => AcousticMaterial | readonly AcousticMaterial[])
     | AcousticMaterial
     | readonly AcousticMaterial[]
+  ref?: Ref<Group>
 }
 
 interface AcousticEntry {
@@ -28,19 +30,20 @@ interface AcousticEntry {
   mesh: Mesh
 }
 
-export const AcousticMesh = forwardRef<Group, AcousticMeshProps>(({
+export const AcousticMesh = ({
   dynamic = false,
   material,
+  ref,
   ...groupProps
-}, forwardedRef) => {
+}: AcousticMeshProps) => {
   const groupRef = useRef<Group>(null)
-  const entries = useRef(new Map<Mesh, AcousticEntry>())
+  const entriesRef = useRef(new Map<Mesh, AcousticEntry>())
   const { register, scene } = useInternalContext('AcousticMesh')
 
   const setGroupRef = useCallback((group: Group | null) => {
     groupRef.current = group
-    setForwardedRef(forwardedRef, group)
-  }, [forwardedRef])
+    setForwardedRef(ref, group)
+  }, [ref])
 
   useLayoutEffect(() => {
     const group = groupRef.current
@@ -58,7 +61,7 @@ export const AcousticMesh = forwardRef<Group, AcousticMeshProps>(({
         throw new Error('AcousticMesh does not support morph targets in the MVP')
       present.add(mesh)
       const resolvedMaterial = typeof material === 'function' ? material(mesh) : material
-      const previous = entries.current.get(mesh)
+      const previous = entriesRef.current.get(mesh)
       if (
         previous
         && previous.dynamic === dynamic
@@ -79,7 +82,7 @@ export const AcousticMesh = forwardRef<Group, AcousticMeshProps>(({
             matrixWorld: mesh.matrixWorld,
           })
       previous?.handle.dispose()
-      entries.current.set(mesh, {
+      entriesRef.current.set(mesh, {
         dynamic,
         geometry: mesh.geometry,
         handle: replacement,
@@ -87,27 +90,27 @@ export const AcousticMesh = forwardRef<Group, AcousticMeshProps>(({
         mesh,
       })
     })
-    for (const [mesh, entry] of entries.current) {
+    for (const [mesh, entry] of entriesRef.current) {
       if (!present.has(mesh)) {
         entry.handle.dispose()
-        entries.current.delete(mesh)
+        entriesRef.current.delete(mesh)
       }
     }
   })
 
   useEffect(() => register('dynamic', () => {
-    for (const entry of entries.current.values()) {
+    for (const entry of entriesRef.current.values()) {
       if (entry.dynamic)
         (entry.handle as DynamicAcousticMeshHandle).setTransform(entry.mesh.matrixWorld)
     }
   }), [register])
 
   useEffect(() => () => {
-    for (const entry of entries.current.values())
+    for (const entry of entriesRef.current.values())
       entry.handle.dispose()
-    entries.current.clear()
+    entriesRef.current.clear()
   }, [])
 
   return <group {...groupProps} ref={setGroupRef} />
-})
+}
 AcousticMesh.displayName = 'AcousticMesh'

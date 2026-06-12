@@ -15,7 +15,7 @@ export const SteamAudioListener = ({ object }: SteamAudioListenerProps) => {
   const camera = useThree(state => state.camera)
   const position = useMemo(() => camera.position.clone(), [camera])
   const orientation = useMemo(() => camera.quaternion.clone(), [camera])
-  const warned = useRef(false)
+  const warnedRef = useRef(false)
 
   useEffect(() => {
     setListenerMounted(true)
@@ -25,8 +25,8 @@ export const SteamAudioListener = ({ object }: SteamAudioListenerProps) => {
   useEffect(() => register('listener', (state) => {
     let target = object?.current ?? camera
     if (object && !object.current) {
-      if (!warned.current) {
-        warned.current = true
+      if (!warnedRef.current) {
+        warnedRef.current = true
         console.warn('SteamAudioListener object ref is null; retaining the last listener transform')
       }
       return

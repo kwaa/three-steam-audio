@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import type { ThreeElements } from '@react-three/fiber'
-import type { RefObject } from 'react'
+import type { Ref, RefObject } from 'react'
 import type { Group, Object3D } from 'three'
 
 import type { World } from '../three/world'
@@ -11,7 +11,6 @@ import type {
 import type { SteamAudioNode } from '../worker/audio-node'
 
 import {
-  forwardRef,
   useCallback,
   useEffect,
   useId,
@@ -64,7 +63,7 @@ export const useSteamAudioSource = (
   )
 
   useEffect(() => {
-    if (!(settings))
+    if (!settings)
       return
     api.source.setSettings(settings)
   }, [api.source, settings])
@@ -95,12 +94,13 @@ export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref
   input?: AudioNode | null
   occlusion?: 'raycast' | 'volumetric' | false
   onReady?: (api: SteamAudioSourceApi) => void
+  ref?: Ref<Group>
   settings?: SourceSettings
   spatialBlend?: number
   transmission?: 'frequency-dependent' | 'frequency-independent' | boolean
 }
 
-export const SteamAudioSource = forwardRef<Group, SteamAudioSourceProps>(({
+export const SteamAudioSource = ({
   airAbsorption,
   destination,
   directivity,
@@ -108,11 +108,12 @@ export const SteamAudioSource = forwardRef<Group, SteamAudioSourceProps>(({
   input,
   occlusion,
   onReady,
+  ref,
   settings,
   spatialBlend,
   transmission,
   ...groupProps
-}, forwardedRef) => {
+}: SteamAudioSourceProps) => {
   const groupRef = useRef<Group>(null)
   const { world } = useInternalContext('SteamAudioSource')
   const mergedSettings = useMemo<SourceSettings>(() => {
@@ -148,8 +149,8 @@ export const SteamAudioSource = forwardRef<Group, SteamAudioSourceProps>(({
 
   const setGroupRef = useCallback((group: Group | null) => {
     groupRef.current = group
-    setForwardedRef(forwardedRef, group)
-  }, [forwardedRef])
+    setForwardedRef(ref, group)
+  }, [ref])
 
   useEffect(() => {
     const output = destination === undefined ? world.audioContext.destination : destination
@@ -157,11 +158,11 @@ export const SteamAudioSource = forwardRef<Group, SteamAudioSourceProps>(({
   }, [api.node, destination, input, world.audioContext.destination])
 
   useEffect(() => {
-    if (!(groupRef.current))
+    if (!groupRef.current)
       return
     onReady?.({ ...api, group: groupRef.current })
   }, [api, onReady])
 
   return <group {...groupProps} ref={setGroupRef} />
-})
+}
 SteamAudioSource.displayName = 'SteamAudioSource'

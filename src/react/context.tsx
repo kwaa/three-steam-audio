@@ -82,31 +82,31 @@ const SteamAudioProvider = ({
   updatePriority = -100,
   world,
 }: ProviderProps) => {
-  const synchronizers = useRef<Record<SyncKind, Set<Synchronizer>>>({
+  const synchronizersRef = useRef<Record<SyncKind, Set<Synchronizer>>>({
     dynamic: new Set(),
     listener: new Set(),
     source: new Set(),
   })
-  const listenerCount = useRef(0)
+  const listenerCountRef = useRef(0)
 
   const register = useCallback((kind: SyncKind, synchronizer: Synchronizer) => {
-    synchronizers.current[kind].add(synchronizer)
-    return () => synchronizers.current[kind].delete(synchronizer)
+    synchronizersRef.current[kind].add(synchronizer)
+    return () => synchronizersRef.current[kind].delete(synchronizer)
   }, [])
 
   const setListenerMounted = useCallback((mounted: boolean) => {
-    if (mounted && listenerCount.current > 0)
+    if (mounted && listenerCountRef.current > 0)
       throw new Error('Only one <SteamAudioListener> may be mounted per <SteamAudio>')
-    listenerCount.current += mounted ? 1 : -1
+    listenerCountRef.current += mounted ? 1 : -1
   }, [])
 
   useFrame((state, delta) => {
     if (paused)
       return
     state.scene.updateWorldMatrix(true, true)
-    for (const synchronizer of synchronizers.current.listener) synchronizer(state)
-    for (const synchronizer of synchronizers.current.dynamic) synchronizer(state)
-    for (const synchronizer of synchronizers.current.source) synchronizer(state)
+    for (const synchronizer of synchronizersRef.current.listener) synchronizer(state)
+    for (const synchronizer of synchronizersRef.current.dynamic) synchronizer(state)
+    for (const synchronizer of synchronizersRef.current.source) synchronizer(state)
     world.scene.commit()
     world.step(delta)
   }, updatePriority)
