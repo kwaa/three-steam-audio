@@ -28,6 +28,7 @@ export const SoundSource = ({ audioContext }: { audioContext: AudioContext }) =>
       input={input}
       occlusion="raycast"
       ref={ref}
+      reflections
       reflectionSend={0.4}
       reverbSend={0.4}
     >

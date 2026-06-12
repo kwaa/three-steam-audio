@@ -24,7 +24,18 @@ export const App = () => {
       <Canvas shadows>
         <Suspense fallback={null}>
           <XR store={store}>
-            <SteamAudio audioContext={audioContext}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{
+                reflections: {
+                  diffuseSamples: 32,
+                  maxDuration: 2,
+                  maxOrder: 1,
+                  maxRays: 2048,
+                  threads: 1,
+                },
+              }}
+            >
               <SteamAudioListener />
               <SteamAudioEnvironment reverb={{ wet: 0.3 }}>
                 <BvhPhysicsWorld>
