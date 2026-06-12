@@ -3,7 +3,15 @@
 [Steam Audio](https://github.com/ValveSoftware/steam-audio) direct-path simulation and HRTF spatialization for Three.js and
 React Three Fiber.
 
-## Core API
+## Usage
+
+```bash
+pnpm add three-steam-audio
+# yarn add three-steam-audio
+# npm i three-steam-audio
+```
+
+### Three.js
 
 ```ts
 import { createWorld, Materials } from 'three-steam-audio'
@@ -34,7 +42,7 @@ world.scene.commit()
 Update listener and source world transforms before calling `world.step(delta)`.
 The application owns the render loop and the `AudioContext`.
 
-## React Three Fiber
+### React Three Fiber
 
 ```tsx
 import { Materials } from 'three-steam-audio'
@@ -68,10 +76,6 @@ just build-bindings
 pnpm build
 pnpm test
 ```
-
-The MVP implements direct simulation, HRTF, acoustic materials, static
-geometry, and rigid dynamic geometry. Reflections, reverb, probes, pathing,
-Ambisonics, and custom HRTFs are outside the MVP scope.
 
 ## Roadmap
 
