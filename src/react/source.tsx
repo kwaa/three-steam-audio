@@ -62,6 +62,12 @@ export const useSteamAudioSource = (
     [entry],
   )
 
+  useEffect(() => {
+    if (!settings)
+      return
+    api.source.setSettings(settings)
+  }, [api.source, settings])
+
   useEffect(() => register('source', () => {
     const target = object.current
     if (!target)
