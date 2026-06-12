@@ -73,6 +73,36 @@ The MVP implements direct simulation, HRTF, acoustic materials, static
 geometry, and rigid dynamic geometry. Reflections, reverb, probes, pathing,
 Ambisonics, and custom HRTFs are outside the MVP scope.
 
+## Roadmap
+
+- [x] WebAssembly-based Steam Audio runtime loading.
+- [x] AudioWorklet-based direct-effect and binaural rendering pipeline.
+- [x] Direct-path simulation for distance attenuation, air absorption,
+      directivity, occlusion, and transmission.
+- [x] Built-in HRTF spatialization for point sources.
+- [x] Acoustic material support.
+- [x] Static acoustic mesh support.
+- [x] Rigid dynamic acoustic mesh support.
+- [x] Core Three.js world/source/listener API.
+- [x] React Three Fiber integration components.
+- [ ] Add support for custom HRTFs via SOFA files.
+- [ ] Improve direct-path usability with better validation, diagnostics, and
+      browser/runtime error handling.
+- [ ] Add real-time reflections simulation.
+- [ ] Add reflection rendering and listener reverb, starting with the cheapest
+      runtime effect chain that works well on the web.
+- [ ] Add pathing for moving sources and listeners without introducing baking
+      workflows.
+- [ ] Add Ambisonics support.
+- [ ] Investigate web-appropriate acceleration paths after the runtime feature
+      set is stable.
+
+Non-goals:
+
+- Probe generation and probe-batch workflows.
+- Baked reflections, baked reverb, or baked pathing.
+- Editor-style authoring flows modeled after the official Unity integration.
+
 ## Acknowledgements
 
 three-steam-audio uses the Steam® Audio SDK. Steam® is a trademark or registered trademark of Valve Corporation in the United States of America and elsewhere. Steam® Audio, Copyright 2017 – present, Valve Corp. All rights reserved.
