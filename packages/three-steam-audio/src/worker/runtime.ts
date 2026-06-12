@@ -59,7 +59,7 @@ const prepareRuntime = async (
   return { module, wasmBinary }
 }
 
-export const getPreparedRuntimePromise = async (
+export const getPreparedRuntimePromise = (
   audioContext: AudioContext,
   moduleFactory: SteamAudioModuleFactory = defaultModuleFactory,
 ): Promise<PreparedRuntime> => {

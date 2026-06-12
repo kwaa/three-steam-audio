@@ -16,6 +16,12 @@ patch:
   else \
     patch -p0 < "{{root}}/patches/steam-audio/flatbuffers-1.12-table-key-comparator.patch"; \
   fi
+  @if grep -q '#if defined(__EMSCRIPTEN__)' \
+    "{{steam-core}}/src/core/thread_pool.cpp"; then \
+    echo "emscripten thread pool patch already applied"; \
+  else \
+    patch -p0 < "{{root}}/patches/steam-audio/emscripten-synchronous-thread-pool.patch"; \
+  fi
 
 build-steam-audio: patch
   cd "{{steam-build}}" && python build.py --platform wasm \

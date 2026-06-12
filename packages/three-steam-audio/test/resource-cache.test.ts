@@ -33,10 +33,26 @@ describe('renderResourceCache', () => {
     expect(disposed).toEqual([1])
   })
 
+  it('does not release a render-created resource before a delayed commit', async () => {
+    const owner = {}
+    const disposed: number[] = []
+    const cache = new RenderResourceCache<object, Resource>(5, 30)
+    const entry = cache.get(owner, ':slow:', () => ({ id: 1 }), resource => disposed.push(resource.id))
+
+    await wait(15)
+    const cleanup = cache.retain(entry)
+    await wait(25)
+    expect(disposed).toEqual([])
+
+    cleanup()
+    await wait(10)
+    expect(disposed).toEqual([1])
+  })
+
   it('releases render-created resources that never commit', async () => {
     const owner = {}
     const disposed: number[] = []
-    const cache = new RenderResourceCache<object, Resource>(5)
+    const cache = new RenderResourceCache<object, Resource>(5, 5)
     cache.get(owner, ':abandoned:', () => ({ id: 1 }), resource => disposed.push(resource.id))
     await wait(15)
     expect(disposed).toEqual([1])

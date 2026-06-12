@@ -1,0 +1,74 @@
+diff --git a/thread_pool.cpp b/thread_pool.cpp
+index 912338e..9253400 100644
+--- steam-audio/core/src/core/thread_pool.cpp
++++ steam-audio/core/src/core/thread_pool.cpp
+@@ -31,10 +31,12 @@ ThreadPool::ThreadPool(int numThreads)
+     , mQuit(false)
+     , mJobGraph(nullptr)
+ {
++#if !defined(__EMSCRIPTEN__)
+     for (auto i = 0; i < numThreads; ++i)
+     {
+         mThreads[i] = std::move(std::thread(&ThreadPool::threadFunc, this, i));
+     }
++#endif
+ }
+ 
+ ThreadPool::~ThreadPool()
+@@ -44,14 +46,24 @@ ThreadPool::~ThreadPool()
+     mReady = static_cast<int>(mThreads.size(0));
+     mCondVarReady.notify_all();
+     lock.unlock();
++#if !defined(__EMSCRIPTEN__)
+     for (auto i = 0u; i < mThreads.size(0); ++i)
+     {
+         mThreads[i].join();
+     }
++#endif
+ }
+ 
+ void ThreadPool::process(JobGraph& jobGraph)
+ {
++#if defined(__EMSCRIPTEN__)
++    mCancel = false;
++    mJobsCompleted = 0;
++    while (jobGraph.processNextJob(0, mCancel))
++    {
++        ++mJobsCompleted;
++    }
++#else
+     mJobGraph = &jobGraph;
+     std::unique_lock<std::mutex> lock(mMutex);
+     mReady = static_cast<int>(mThreads.size(0));
+@@ -59,10 +71,23 @@ void ThreadPool::process(JobGraph& jobGraph)
+     mJobsCompleted = 0;
+     mCondVarReady.notify_all();
+     mCondVarComplete.wait(lock, [this]() { return (mCompleted == mThreads.size(0)); });
++#endif
+ }
+ 
+ void ThreadPool::process(JobGraph& jobGraph, std::function<void(float)> progressFn)
+ {
++#if defined(__EMSCRIPTEN__)
++    mCancel = false;
++    mJobsCompleted = 0;
++    const auto numJobs = jobGraph.getNumJobs();
++    while (jobGraph.processNextJob(0, mCancel))
++    {
++        ++mJobsCompleted;
++        progressFn(numJobs > 0 ? (mJobsCompleted.load() * 1.0f) / numJobs : 1.0f);
++    }
++    if (numJobs == 0)
++        progressFn(1.0f);
++#else
+     mJobGraph = &jobGraph;
+     std::unique_lock<std::mutex> lock(mMutex);
+     mReady = static_cast<int>(mThreads.size(0));
+@@ -74,6 +99,7 @@ void ThreadPool::process(JobGraph& jobGraph, std::function<void(float)> progress
+         progressFn((mJobsCompleted.load() * 1.0f) / jobGraph.getNumJobs());
+         return (mCompleted == mThreads.size(0)); 
+     });
++#endif
+ }
+ 
+ void ThreadPool::cancel()

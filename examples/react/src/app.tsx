@@ -17,7 +17,17 @@ import { SoundSource } from './components/sound-source'
 
 export const App = () => {
   const store = createXRStore({ offerSession: 'immersive-vr' })
-  const [audioContext] = useState(() => new AudioContext())
+  const [{ audio, audioContext, input }] = useState(() => {
+    const context = new AudioContext()
+    const element = new Audio('/Snowfall (Looped ver.).ogg')
+    element.crossOrigin = 'anonymous'
+    element.loop = true
+    return {
+      audio: element,
+      audioContext: context,
+      input: context.createMediaElementSource(element),
+    }
+  })
 
   return (
     <>
@@ -32,7 +42,6 @@ export const App = () => {
                   maxDuration: 2,
                   maxOrder: 1,
                   maxRays: 2048,
-                  threads: 1,
                 },
               }}
             >
@@ -41,9 +50,9 @@ export const App = () => {
                 <BvhPhysicsWorld>
                   <Player />
                   <Environment />
-                  <SoundSource audioContext={audioContext} />
+                  <SoundSource input={input} />
                 </BvhPhysicsWorld>
-                <Navbar audioContext={audioContext} />
+                <Navbar audio={audio} audioContext={audioContext} />
               </SteamAudioEnvironment>
             </SteamAudio>
           </XR>

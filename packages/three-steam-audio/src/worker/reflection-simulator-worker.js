@@ -200,7 +200,7 @@ const initialize = async (message) => {
     settings.diffuseSamples,
     settings.maxDuration,
     settings.maxOrder,
-    settings.threads,
+    1,
     out,
   ))
   runtime = { context, module, scene, simulator }

@@ -135,7 +135,6 @@ export interface SimulationSettings {
   maxRays?: number
   pathingVisibilitySamples?: number
   rayBatchSize?: number
-  reflectionThreads?: number
 }
 
 export interface Source {
@@ -206,7 +205,6 @@ export interface WorldOptions {
     maxDuration?: number
     maxOrder?: number
     maxRays?: number
-    threads?: number
   }
   simulation?: SimulationSettings
   simulationRate?: number

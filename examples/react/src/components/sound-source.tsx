@@ -1,18 +1,11 @@
 import type { Group } from 'three'
 
 import { useFrame } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+import { useRef } from 'react'
 import { SteamAudioSource } from 'three-steam-audio/react'
 
-export const SoundSource = ({ audioContext }: { audioContext: AudioContext }) => {
+export const SoundSource = ({ input }: { input: AudioNode }) => {
   const ref = useRef<Group>(null)
-  const input = useMemo(() => {
-    const audio = new Audio('/Snowfall (Looped ver.).ogg')
-    audio.crossOrigin = 'anonymous'
-    audio.loop = true
-    void audio.play()
-    return audioContext.createMediaElementSource(audio)
-  }, [audioContext])
 
   useFrame(({ clock }) => {
     if (!ref.current)

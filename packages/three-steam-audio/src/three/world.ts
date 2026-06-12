@@ -83,7 +83,6 @@ export interface NormalizedReflectionSimulationSettings {
   maxRays: number
   order: number
   rays: number
-  threads: number
 }
 
 interface NativeMesh {
@@ -918,12 +917,6 @@ export class WorldImpl {
       ?? options.simulation?.diffuseSamples
       ?? 32,
     )
-    const reflectionThreads = integer(
-      'reflections.threads',
-      reflectionOptions?.threads
-      ?? options.simulation?.reflectionThreads
-      ?? 1,
-    )
     this.reflectionSettings = {
       bounces: 8,
       diffuseSamples,
@@ -935,7 +928,6 @@ export class WorldImpl {
       maxRays,
       order: maxOrder,
       rays: maxRays,
-      threads: reflectionThreads,
     }
     const useReflectionWorker = this.reflectionSettings.enabled
       && canUseReflectionWorker()
@@ -961,7 +953,7 @@ export class WorldImpl {
             diffuseSamples,
             maxDuration,
             maxOrder,
-            reflectionThreads,
+            1,
             out,
           ))
       }

@@ -10,10 +10,12 @@ interface ManagedResourceLease<T> extends ResourceLease<T> {
 }
 
 export class RenderResourceCache<Owner extends object, Resource> {
+  readonly #abandonedReleaseDelay: number
   readonly #byOwner = new WeakMap<Owner, Map<string, ManagedResourceLease<Resource>>>()
   readonly #releaseDelay: number
 
-  constructor(releaseDelay = 50) {
+  constructor(releaseDelay = 50, abandonedReleaseDelay = 30_000) {
+    this.#abandonedReleaseDelay = abandonedReleaseDelay
     this.#releaseDelay = releaseDelay
   }
 
@@ -37,7 +39,7 @@ export class RenderResourceCache<Owner extends object, Resource> {
         resource: create(),
       }
       byId.set(id, entry)
-      this.#scheduleRelease(entry)
+      this.#scheduleRelease(entry, this.#abandonedReleaseDelay)
     }
     return entry
   }
@@ -54,12 +56,15 @@ export class RenderResourceCache<Owner extends object, Resource> {
     }
   }
 
-  #scheduleRelease(entry: ManagedResourceLease<Resource>): void {
+  #scheduleRelease(
+    entry: ManagedResourceLease<Resource>,
+    delay = this.#releaseDelay,
+  ): void {
     entry.timer = setTimeout(() => {
       if (entry.references !== 0)
         return
       entry.dispose(entry.resource)
       entry.remove()
-    }, this.#releaseDelay)
+    }, delay)
   }
 }
