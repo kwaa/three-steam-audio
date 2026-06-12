@@ -15,9 +15,11 @@
     "@react-three/uikit-horizon": "catalog:",
     "@react-three/viverse": "catalog:",
     "@react-three/xr": "catalog:",
+    "leva": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "three": "catalog:"
+    "three": "catalog:",
+    "three-steam-audio": "workspace:"
   },
   "devDependencies": {
     "@types/react": "catalog:",

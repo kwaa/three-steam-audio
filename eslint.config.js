@@ -4,6 +4,7 @@ export default defineConfig(
   { react: true },
   {
     rules: {
+      '@masknet/jsx-no-logical': 'off',
       '@masknet/jsx-prefer-test-id': 'off',
     },
   },
