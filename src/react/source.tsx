@@ -62,12 +62,6 @@ export const useSteamAudioSource = (
     [entry],
   )
 
-  useEffect(() => {
-    if (!settings)
-      return
-    api.source.setSettings(settings)
-  }, [api.source, settings])
-
   useEffect(() => register('source', () => {
     const target = object.current
     if (!target)
@@ -150,18 +144,15 @@ export const SteamAudioSource = ({
   const setGroupRef = useCallback((group: Group | null) => {
     groupRef.current = group
     setForwardedRef(ref, group)
-  }, [ref])
+    if (group) {
+      onReady?.({ ...api, group })
+    }
+  }, [api, onReady, ref])
 
   useEffect(() => {
     const output = destination === undefined ? world.audioContext.destination : destination
     return connectManagedAudioEdges(input, api.node, output)
   }, [api.node, destination, input, world.audioContext.destination])
-
-  useEffect(() => {
-    if (!groupRef.current)
-      return
-    onReady?.({ ...api, group: groupRef.current })
-  }, [api, onReady])
 
   return <group {...groupProps} ref={setGroupRef} />
 }
