@@ -6,6 +6,9 @@ Three.js and React Three Fiber.
 
 ## Usage
 
+> [!IMPORTANT]
+> This package has not yet been released. Stay tuned!
+
 ```bash
 pnpm add three-steam-audio
 # yarn add three-steam-audio
@@ -120,6 +123,7 @@ just build-steam-audio
 just build-bindings
 pnpm build
 pnpm test
+pnpm dev:example-react # run demo
 ```
 
 ## Roadmap
