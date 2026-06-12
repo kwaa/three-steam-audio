@@ -3,7 +3,7 @@ import { defineConfig } from '@moeru/eslint-config'
 export default defineConfig(
   { react: true },
   {
-    files: ['test/**/*.ts'],
+    files: ['**/test/**/*.ts'],
     rules: {
       '@masknet/no-top-level': 'off',
       '@masknet/prefer-timer-id': 'off',

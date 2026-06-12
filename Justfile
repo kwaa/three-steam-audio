@@ -4,7 +4,7 @@ steam-core := steam / "core"
 steam-build := steam-core / "build"
 build := root / ".build"
 wasm-build := build / "wasm"
-bindings-dist := root / "src/bindings"
+bindings-dist := root / "packages/three-steam-audio/src/bindings"
 
 get_dependencies:
   cd "{{steam-build}}" && python get_dependencies.py --platform wasm

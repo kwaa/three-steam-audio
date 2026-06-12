@@ -1,0 +1,64 @@
+{
+  "name": "three-steam-audio",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react/index.tsx",
+    "./wasm": "./src/bindings/phonon_bindings.wasm",
+    "./wasm-runtime": "./src/bindings/phonon_bindings.js",
+    "./worklet": "./src/worker/steam-audio-processor.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "./react": {
+        "types": "./dist/react.d.ts",
+        "default": "./dist/react.js"
+      },
+      "./wasm": "./dist/bindings/phonon_bindings.wasm",
+      "./wasm-runtime": {
+        "types": "./dist/bindings/phonon_bindings.d.ts",
+        "default": "./dist/bindings/phonon_bindings.js"
+      },
+      "./worklet": "./dist/steam-audio-processor.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "tsdown && vitest run",
+    "typecheck": "tsc -p ../../tsconfig.app.json --noEmit"
+  },
+  "peerDependencies": {
+    "@react-three/fiber": "^9.6.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.184.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-three/fiber": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@react-three/fiber": "^9.6.1",
+    "@types/emscripten": "^1.41.5",
+    "@types/react": "^19.2.17",
+    "@types/three": "^0.184.1",
+    "react": "^19.2.7",
+    "three": "^0.184.0"
+  }
+}

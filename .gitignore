@@ -22,7 +22,7 @@ dist
 .direnv
 
 # bindings dist
-src/bindings
+packages/three-steam-audio/src/bindings
 
 # private docs
 docs/private

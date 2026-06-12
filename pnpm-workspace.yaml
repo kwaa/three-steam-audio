@@ -6,3 +6,8 @@ minimumReleaseAge: 1440
 shellEmulator: true
 
 trustPolicy: no-downgrade
+
+packages:
+  - docs
+  - examples/*
+  - packages/*
