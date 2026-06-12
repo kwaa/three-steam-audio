@@ -9,6 +9,7 @@ words:
   - deinterleaved
   - directivity
   - direnv
+  - drei
   - emscripten
   - EMSDK
   - esbuild
@@ -28,5 +29,6 @@ words:
   - vite
   - vitejs
   - vitest
+  - viverse
 ignoreWords: []
 import: []
