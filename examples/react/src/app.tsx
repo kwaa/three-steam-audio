@@ -10,8 +10,8 @@ import {
   SteamAudioListener,
 } from 'three-steam-audio/react'
 
-import { EnterVR } from './components/enter-vr'
 import { Environment } from './components/environment'
+import { Navbar } from './components/navbar'
 import { Player } from './components/player'
 import { SoundSource } from './components/sound-source'
 
@@ -32,7 +32,7 @@ export const App = () => {
                   <Environment />
                   <SoundSource audioContext={audioContext} />
                 </BvhPhysicsWorld>
-                <EnterVR audioContext={audioContext} />
+                <Navbar audioContext={audioContext} />
               </SteamAudioEnvironment>
             </SteamAudio>
           </XR>
