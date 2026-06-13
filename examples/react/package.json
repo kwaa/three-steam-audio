@@ -17,6 +17,7 @@
     "@react-three/viverse": "catalog:",
     "@react-three/xr": "catalog:",
     "leva": "catalog:",
+    "r3f-perf": "^7.2.3",
     "react": "catalog:",
     "react-dom": "catalog:",
     "three": "catalog:",

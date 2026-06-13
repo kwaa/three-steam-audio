@@ -5,6 +5,7 @@ import { Canvas } from '@react-three/fiber'
 import { BvhPhysicsWorld } from '@react-three/viverse'
 import { createXRStore, XR } from '@react-three/xr'
 import { Leva } from 'leva'
+import { Perf } from 'r3f-perf'
 import { Suspense, useState } from 'react'
 import {
   SteamAudio,
@@ -70,6 +71,8 @@ export const App = () => {
   return (
     <>
       <Canvas>
+        <Perf position="top-left" />
+
         <Suspense fallback={null}>
           <XR store={store}>
             <SteamAudio

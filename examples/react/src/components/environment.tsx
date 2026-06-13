@@ -1,3 +1,4 @@
+/* eslint-disable react/no-array-index-key */
 import { Sky } from '@react-three/drei'
 import { BvhPhysicsBody, PrototypeBox } from '@react-three/viverse'
 import { Materials } from 'three-steam-audio'
