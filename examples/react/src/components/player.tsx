@@ -5,6 +5,8 @@ import { FirstPersonCharacterCameraBehavior, SimpleCharacter, useXRControllerLoc
 import { useXR, useXRInputSourceState, XROrigin } from '@react-three/xr'
 import { useRef } from 'react'
 
+const spawnPosition = [-4, 0, -2] as const
+
 // https://pmndrs.github.io/viverse/tutorials/augmented-and-virtual-reality#step-4:-place-the-xrorigin-into-the-simple-character-and-optionally-add-snap-rotation
 const SnapRotateXROrigin = () => {
   const ref = useRef<Group>(null)
@@ -43,7 +45,7 @@ export const Player = () => {
       return
 
     if (playerRef.current.position.y < -10)
-      playerRef.current.position.set(0, 0, 0)
+      playerRef.current.position.fromArray(spawnPosition)
   })
 
   return (
@@ -51,7 +53,7 @@ export const Player = () => {
       // https://pmndrs.github.io/viverse/tutorials/first-person
       cameraBehavior={inSession ? false : FirstPersonCharacterCameraBehavior}
       model={false}
-      position={[-4, 0, -2]}
+      position={spawnPosition}
       ref={playerRef}
     >
       <SnapRotateXROrigin />

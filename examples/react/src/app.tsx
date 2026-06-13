@@ -19,8 +19,9 @@ import { SoundSource } from './components/sound-source'
 
 export type AudioMode = 'dry' | 'room' | 'spatial'
 
+const store = createXRStore({ offerSession: 'immersive-vr' })
+
 export const App = () => {
-  const store = createXRStore({ offerSession: 'immersive-vr' })
   const [audioMode, setAudioMode] = useState<AudioMode>('room')
   const [metrics, setMetrics] = useState<AcousticMetrics>()
   const [playing, setPlaying] = useState(false)
@@ -68,7 +69,7 @@ export const App = () => {
 
   return (
     <>
-      <Canvas shadows>
+      <Canvas>
         <Suspense fallback={null}>
           <XR store={store}>
             <SteamAudio audioContext={audioContext}>
@@ -93,15 +94,15 @@ export const App = () => {
                 </BvhPhysicsWorld>
               </SteamAudioEnvironment>
             </SteamAudio>
+
+            <Navbar
+              metrics={metrics}
+              mode={audioMode}
+              onModeChange={setAudioMode}
+              onTogglePlayback={togglePlayback}
+              playing={playing}
+            />
           </XR>
-          <Navbar
-            metrics={metrics}
-            mode={audioMode}
-            onEnterVR={() => void store.enterVR()}
-            onModeChange={setAudioMode}
-            onTogglePlayback={togglePlayback}
-            playing={playing}
-          />
         </Suspense>
       </Canvas>
       <Loader />
