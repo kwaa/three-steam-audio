@@ -21,6 +21,7 @@ class FakeGainNode {
 export class FakePort {
   closed = false
   messages: unknown[] = []
+  onmessage?: (event: MessageEvent) => void
 
   close(): void {
     this.closed = true

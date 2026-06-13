@@ -40,4 +40,5 @@ export {
   ReverbBusNode,
   SteamAudioNode,
 } from './worker/audio-node'
+export type { SteamAudioNodeState } from './worker/audio-node'
 export { detectCapabilities } from './worker/runtime'

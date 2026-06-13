@@ -38,6 +38,7 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   directEffect?: number
   directPointer?: number
   disposed: boolean
+  failed: boolean
   frameSize: number
   hrtfMix: number
   inputActive: Uint8Array

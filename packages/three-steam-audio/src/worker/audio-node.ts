@@ -6,7 +6,15 @@ import type {
   Source,
 } from '../types'
 
+import { SteamAudioError } from '../three/errors'
+
 const CONTROL_VALUE_COUNT = 23
+
+export type SteamAudioNodeState
+  = | 'disposed'
+    | 'failed'
+    | 'initializing'
+    | 'ready'
 
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
@@ -120,11 +128,16 @@ export class ReverbBusNode extends SteamAudioBusNode {
 }
 
 export class SteamAudioNode extends AudioWorkletNodeBase {
+  #error?: Error
   readonly source: Source
   readonly #controlData?: Float32Array
   readonly #controlSequence?: Int32Array
   #disposed = false
   readonly #onDispose: (node: SteamAudioNode) => void
+  readonly ready: Promise<void>
+  #rejectReady!: (reason: Error) => void
+  #resolveReady!: () => void
+  #state: SteamAudioNodeState = 'initializing'
 
   constructor(context: AudioContext, options: NodeOptions) {
     const useSharedMemory = globalThis.crossOriginIsolated === true
@@ -146,15 +159,41 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     })
     this.source = options.source
     this.#onDispose = options.onDispose
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.#resolveReady = resolve
+      this.#rejectReady = reject
+    })
+    // Consumers may observe readiness through state/error instead of awaiting.
+    void this.ready.catch(() => {})
     this.port.onmessage = ({ data }: MessageEvent<{ message?: unknown, type: string }>) => {
-      if (data.type !== 'error')
+      if (data.type === 'ready') {
+        if (this.#state !== 'initializing')
+          return
+        this.#state = 'ready'
+        this.#resolveReady()
         return
-      console.error(`Steam Audio worklet failed: ${String(data.message)}`)
+      }
+      if (data.type === 'error')
+        this.#fail(String(data.message))
     }
+    const eventTarget = this as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void
+    }
+    eventTarget.addEventListener?.('processorerror', () => {
+      this.#fail('AudioWorklet processor crashed')
+    })
     if (controlBuffer) {
       this.#controlSequence = new Int32Array(controlBuffer, 0, 1)
       this.#controlData = new Float32Array(controlBuffer, 4, CONTROL_VALUE_COUNT)
     }
+  }
+
+  get error(): Error | undefined {
+    return this.#error
+  }
+
+  get state(): SteamAudioNodeState {
+    return this.#state
   }
 
   connectReflections(
@@ -175,6 +214,14 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     if (this.#disposed)
       return
     this.#disposed = true
+    if (this.#state === 'initializing') {
+      this.#error = new SteamAudioError(
+        'AudioWorklet.initialize',
+        'node was disposed before initialization completed',
+      )
+      this.#rejectReady(this.#error)
+    }
+    this.#state = 'disposed'
     disposeWorkletNode(this, () => this.#onDispose(this))
   }
 
@@ -238,5 +285,13 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
         gainNode.gain.value = validateGain(gain)
       },
     }
+  }
+
+  #fail(message: string): void {
+    if (this.#state !== 'initializing')
+      return
+    this.#error = new SteamAudioError('AudioWorklet.initialize', message)
+    this.#state = 'failed'
+    this.#rejectReady(this.#error)
   }
 }

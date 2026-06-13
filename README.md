@@ -96,7 +96,10 @@ import {
     options={{ reflections: { maxRays: 4096 } }}
   >
     <SteamAudioListener />
-    <SteamAudioEnvironment reverb={{ wet: 0.5 }}>
+    <SteamAudioEnvironment
+      reflections={{ wet: 1 }}
+      reverb={{ wet: 0.5 }}
+    >
       <AcousticMesh material={Materials.concrete}>
         <mesh geometry={roomGeometry} />
       </AcousticMesh>
@@ -114,6 +117,11 @@ import {
 
 Create or resume the `AudioContext` from a user gesture to satisfy browser
 autoplay policy.
+
+`SteamAudioNode` initialization is asynchronous. Use `await node.ready` when
+playback must not begin until its AudioWorklet DSP runtime is ready. If
+initialization fails, `ready` rejects and `node.state` becomes `"failed"`;
+the node outputs silence instead of bypassing the unprocessed input.
 
 ## Development
 

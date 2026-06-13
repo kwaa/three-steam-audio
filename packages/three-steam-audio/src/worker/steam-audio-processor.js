@@ -89,6 +89,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.outputWrite = 0
     this.outputCount = 0
     this.disposed = false
+    this.failed = false
     this.ready = false
 
     this.port.onmessage = ({ data }) => {
@@ -100,10 +101,13 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
 
     getRuntime(processorOptions.wasmBinary, this.frameSize)
       .then(runtime => this.initialize(runtime))
-      .catch(error => this.port.postMessage({
-        message: error instanceof Error ? error.message : String(error),
-        type: 'error',
-      }))
+      .catch((error) => {
+        this.failed = true
+        this.port.postMessage({
+          message: error instanceof Error ? error.message : String(error),
+          type: 'error',
+        })
+      })
   }
 
   dispose() {
@@ -168,12 +172,9 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     }
     const quantumSize = output[0].length
     if (!this.ready) {
-      const input = inputs[0]
-      const left = input?.[0]
-      const right = input?.[1] ?? left
-      for (let index = 0; index < quantumSize; index++) {
-        output[0][index] = left?.[index] ?? 0
-        output[1][index] = right?.[index] ?? 0
+      for (const target of [output, reflectionOutput, reverbOutput]) {
+        for (const channel of target)
+          channel.fill(0)
       }
       return !this.disposed
     }

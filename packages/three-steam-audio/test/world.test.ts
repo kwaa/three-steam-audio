@@ -279,6 +279,37 @@ describe('world', () => {
     vi.stubGlobal('crossOriginIsolated', false)
   })
 
+  it('exposes AudioWorklet initialization success and failure', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+    })
+    const source = world.createSource()
+    const readyNode = world.createNode(source)
+    expect(readyNode.state).toBe('initializing')
+    readyNode.port.onmessage?.({
+      data: { type: 'ready' },
+    } as MessageEvent)
+    await expect(readyNode.ready).resolves.toBeUndefined()
+    expect(readyNode.state).toBe('ready')
+    expect(readyNode.error).toBeUndefined()
+
+    const failedNode = world.createNode(source)
+    failedNode.port.onmessage?.({
+      data: { message: 'WASM initialization failed', type: 'error' },
+    } as MessageEvent)
+    await expect(failedNode.ready).rejects.toThrow(
+      /AudioWorklet\.initialize: WASM initialization failed/,
+    )
+    expect(failedNode.state).toBe('failed')
+    expect(failedNode.error).toBeInstanceOf(Error)
+
+    source.dispose()
+    world.dispose()
+  })
+
   it('runs parametric reflections at a separate rate and exposes reflection and reverb sends', async () => {
     const native = createNativeModule()
     const audio = createAudioContext()

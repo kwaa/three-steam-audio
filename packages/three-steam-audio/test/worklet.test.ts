@@ -84,6 +84,45 @@ describe('steamAudioProcessor', () => {
     expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
   })
 
+  it('outputs silence while the DSP runtime is still initializing', () => {
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => ProcessorInstance>()
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        wasmBinary: new ArrayBuffer(0),
+      },
+    })
+    const input = new Float32Array(128).fill(0.5)
+    const directOutput = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    const reflectionOutput = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    const reverbOutput = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+
+    expect(processor.process(
+      [[input]],
+      [directOutput, reflectionOutput, reverbOutput],
+    )).toBe(true)
+    for (const output of [
+      ...directOutput,
+      ...reflectionOutput,
+      ...reverbOutput,
+    ]) {
+      expect([...output]).toEqual([...new Float32Array(128)])
+    }
+    processor.dispose()
+  })
+
   it('produces directional HRTF and non-zero parametric room outputs', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const Processor = getRegisteredProcessor<new (options: { processorOptions: { frameSize: number, wasmBinary: ArrayBuffer } }) => ProcessorInstance>()
