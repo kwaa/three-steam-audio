@@ -204,6 +204,31 @@ describe('world', () => {
     world.dispose()
   })
 
+  it('keeps reflections disabled unless the World explicitly enables them', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+    })
+
+    expect(() => world.createReflectionBus()).toThrow(
+      'Reflections are disabled for this World',
+    )
+    expect(() => world.createReverbBus()).toThrow(
+      'Reflections are disabled for this World',
+    )
+    expect(() => world.createSource({ reflections: true })).toThrow(
+      'Source reflections require World reflections to be enabled',
+    )
+
+    const simulatorCreate = native.calls.find(
+      ([name]) => name === '_sa_simulator_create',
+    )
+    expect(simulatorCreate?.[7]).toBe(0)
+    world.dispose()
+  })
+
   it('publishes source direction in listener-local coordinates', async () => {
     const native = createNativeModule()
     const audio = createAudioContext()

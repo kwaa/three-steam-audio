@@ -902,7 +902,7 @@ export class WorldImpl {
     )
     const reflectionOptions = options.reflections === false
       ? undefined
-      : (options.reflections ?? {})
+      : options.reflections
     const maxRays = integer(
       'reflections.maxRays',
       reflectionOptions?.maxRays ?? options.simulation?.maxRays ?? 4096,

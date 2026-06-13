@@ -72,7 +72,17 @@ export const App = () => {
       <Canvas>
         <Suspense fallback={null}>
           <XR store={store}>
-            <SteamAudio audioContext={audioContext}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{
+                reflections: {
+                  diffuseSamples: 32,
+                  maxDuration: 2,
+                  maxOrder: 1,
+                  maxRays: 2048,
+                },
+              }}
+            >
               <SteamAudioListener />
               <SteamAudioEnvironment
                 destination={roomGain}

@@ -47,7 +47,7 @@ export const useSteamAudioEnvironment = (): EnvironmentValue =>
 export const SteamAudioEnvironment = ({
   children,
   destination,
-  reflections = true,
+  reflections = false,
   reverb = false,
 }: SteamAudioEnvironmentProps) => {
   const { world } = useInternalContext('SteamAudioEnvironment')
