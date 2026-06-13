@@ -2,7 +2,30 @@
   "name": "three-steam-audio",
   "type": "module",
   "version": "0.1.0",
-  "private": true,
+  "description": "Steam Audio for Three.js and React Three Fiber.",
+  "author": {
+    "name": "藍+85CD",
+    "url": "https://github.com/kwaa"
+  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/kwaa/three-steam-audio#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kwaa/three-steam-audio.git",
+    "directory": "packages/three-steam-audio"
+  },
+  "bugs": {
+    "url": "https://github.com/kwaa/three-steam-audio/issues"
+  },
+  "keywords": [
+    "3d-audio",
+    "react-three-fiber",
+    "spatial-audio",
+    "steam-audio",
+    "three.js",
+    "webaudio",
+    "webassembly"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -23,8 +46,12 @@
     }
   },
   "files": [
+    "THIRDPARTY.md",
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "test": "tsdown && vitest run",

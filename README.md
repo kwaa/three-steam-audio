@@ -1,8 +1,6 @@
 # three-steam-audio
 
-[Steam Audio](https://github.com/ValveSoftware/steam-audio) spatial audio,
-direct-path simulation, parametric reflections, and listener reverb for
-Three.js and React Three Fiber.
+[Steam Audio](https://github.com/ValveSoftware/steam-audio) for Three.js and React Three Fiber.
 
 ## Usage
 

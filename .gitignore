@@ -24,6 +24,11 @@ dist
 # bindings dist
 packages/three-steam-audio/src/bindings
 
+# generated package docs
+packages/three-steam-audio/LICENSE
+packages/three-steam-audio/README.md
+packages/three-steam-audio/THIRDPARTY.md
+
 # private docs
 docs/private
 docs/spark
