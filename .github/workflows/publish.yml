@@ -1,0 +1,61 @@
+name: publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # Nix
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+
+      # Node.js
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: pnpm install --frozen-lockfile
+
+      # Steam Audio dist
+      - uses: actions/cache@v5
+        with:
+          path: |
+            steam-audio/core/bin
+            steam-audio/core/build/wasm-release
+            steam-audio/core/deps
+            steam-audio/core/deps-build
+          key: steam-audio-wasm-${{ runner.os }}-${{ hashFiles('flake.lock', '.gitmodules', 'Justfile', 'patches/steam-audio/**', 'steam-audio/core/CMakeLists.txt', 'steam-audio/core/build/dependencies.json') }}
+
+      # Publish
+      - run: nix develop --command just get_dependencies build-steam-audio build-bindings
+      - run: pnpm build
+      - run: npm pack --dry-run
+        working-directory: packages/three-steam-audio
+      - run: pnpm publish --no-git-checks
+        working-directory: packages/three-steam-audio
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+
+      - run: pnpm dlx changelogithub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
