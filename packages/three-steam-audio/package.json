@@ -1,7 +1,7 @@
 {
   "name": "three-steam-audio",
   "type": "module",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Steam Audio for Three.js and React Three Fiber.",
   "author": {
     "name": "藍+85CD",
