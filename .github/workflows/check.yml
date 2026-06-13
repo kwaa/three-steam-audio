@@ -1,0 +1,53 @@
+name: check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # Nix
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+
+      # Node.js
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+
+      # Steam Audio dist
+      - uses: actions/cache@v5
+        with:
+          path: |
+            steam-audio/core/bin
+            steam-audio/core/build/wasm-release
+            steam-audio/core/deps
+            steam-audio/core/deps-build
+          key: steam-audio-wasm-${{ runner.os }}-${{ hashFiles('flake.lock', '.gitmodules', 'Justfile', 'patches/steam-audio/**', 'steam-audio/core/CMakeLists.txt', 'steam-audio/core/build/dependencies.json') }}
+
+      # Check
+      - run: nix develop --command just get_dependencies build-steam-audio build-bindings
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: npm pack --dry-run
+        working-directory: packages/three-steam-audio

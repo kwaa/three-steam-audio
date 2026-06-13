@@ -33,12 +33,15 @@
               gnupatch
               ninja
               emscripten
+              just
             ];
 
             CMAKE_POLICY_VERSION_MINIMUM = "3.5";
             # EMSDK = "${pkgs.emscripten}/share/emscripten";
             EMSDK = emsdkCompat;
-            STEAMAUDIO_ROOT="$PWD/steam-audio";
+            shellHook = ''
+              export STEAMAUDIO_ROOT="$PWD/steam-audio"
+            '';
           };
         }
       );

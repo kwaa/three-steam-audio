@@ -7,7 +7,7 @@ wasm-build := build / "wasm"
 bindings-dist := root / "packages/three-steam-audio/src/bindings"
 
 get_dependencies:
-  cd "{{steam-build}}" && python get_dependencies.py --platform wasm
+  cd "{{steam-build}}" && python3 get_dependencies.py --platform wasm
 
 patch:
   @if grep -q 'FLATBUFFERS_DELETE_FUNC(TableKeyComparator &operator=(const TableKeyComparator &other))' \
@@ -24,7 +24,7 @@ patch:
   fi
 
 build-steam-audio: patch
-  cd "{{steam-build}}" && python build.py --platform wasm \
+  cd "{{steam-build}}" && python3 build.py --platform wasm \
     --minimal \
     --operation ci_build
 
