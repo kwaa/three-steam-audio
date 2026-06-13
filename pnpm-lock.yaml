@@ -63,6 +63,9 @@ catalogs:
     leva:
       specifier: ^0.10.1
       version: 0.10.1
+    r3f-perf:
+      specifier: ^7.2.3
+      version: 7.2.3
     react:
       specifier: ^19.2.7
       version: 19.2.7
@@ -162,7 +165,7 @@ importers:
         specifier: 'catalog:'
         version: 0.10.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       r3f-perf:
-        specifier: ^7.2.3
+        specifier: 'catalog:'
         version: 7.2.3(@react-three/fiber@9.6.1(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0))(@types/react@19.2.17)(@types/three@0.184.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(three@0.184.0)(use-sync-external-store@1.6.0(react@19.2.7))
       react:
         specifier: 'catalog:'

@@ -10,12 +10,6 @@ import { SteamAudioError } from '../three/errors'
 
 const CONTROL_VALUE_COUNT = 23
 
-export type SteamAudioNodeState
-  = | 'disposed'
-    | 'failed'
-    | 'initializing'
-    | 'ready'
-
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
   direction: readonly [number, number, number]
@@ -32,6 +26,12 @@ export interface NodeControlValues {
   transmission: readonly [number, number, number]
   transmissionType: number
 }
+
+export type SteamAudioNodeState
+  = | 'disposed'
+    | 'failed'
+    | 'initializing'
+    | 'ready'
 
 interface NodeOptions {
   frameSize: number
@@ -128,15 +128,25 @@ export class ReverbBusNode extends SteamAudioBusNode {
 }
 
 export class SteamAudioNode extends AudioWorkletNodeBase {
-  #error?: Error
+  readonly ready: Promise<void>
   readonly source: Source
+  get error(): Error | undefined {
+    return this.#error
+  }
+
+  get state(): SteamAudioNodeState {
+    return this.#state
+  }
+
   readonly #controlData?: Float32Array
   readonly #controlSequence?: Int32Array
   #disposed = false
+  #error?: Error
   readonly #onDispose: (node: SteamAudioNode) => void
-  readonly ready: Promise<void>
   #rejectReady!: (reason: Error) => void
+
   #resolveReady!: () => void
+
   #state: SteamAudioNodeState = 'initializing'
 
   constructor(context: AudioContext, options: NodeOptions) {
@@ -164,6 +174,7 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
       this.#rejectReady = reject
     })
     // Consumers may observe readiness through state/error instead of awaiting.
+    // eslint-disable-next-line sonarjs/no-async-constructor
     void this.ready.catch(() => {})
     this.port.onmessage = ({ data }: MessageEvent<{ message?: unknown, type: string }>) => {
       if (data.type === 'ready') {
@@ -186,14 +197,6 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
       this.#controlSequence = new Int32Array(controlBuffer, 0, 1)
       this.#controlData = new Float32Array(controlBuffer, 4, CONTROL_VALUE_COUNT)
     }
-  }
-
-  get error(): Error | undefined {
-    return this.#error
-  }
-
-  get state(): SteamAudioNodeState {
-    return this.#state
   }
 
   connectReflections(
