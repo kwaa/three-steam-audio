@@ -165,3 +165,7 @@ Non-goals:
 ## Acknowledgements
 
 three-steam-audio uses the Steam® Audio SDK. Steam® is a trademark or registered trademark of Valve Corporation in the United States of America and elsewhere. Steam® Audio, Copyright 2017 – present, Valve Corp. All rights reserved.
+
+## License
+
+[Apache-2.0](./LICENSE)
