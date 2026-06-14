@@ -14,7 +14,7 @@ To create a world, pass an `AudioContext` to [`createWorld()`](/reference/world/
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
     import { createWorld } from 'three-steam-audio'
 
     const audioContext = new AudioContext()
@@ -24,7 +24,7 @@ To create a world, pass an `AudioContext` to [`createWorld()`](/reference/world/
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import { SteamAudio } from 'three-steam-audio/react'
@@ -66,7 +66,11 @@ If reflections are enabled, you must also specify their upper bounds at creation
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {7-13}
+    import { createWorld } from 'three-steam-audio'
+
+    const audioContext = new AudioContext()
+
     const world = await createWorld({
       audioContext,
       reflections: {
@@ -79,20 +83,34 @@ If reflections are enabled, you must also specify their upper bounds at creation
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
-    <SteamAudio
-      audioContext={audioContext}
-      options={{
-        reflections: {
-          maxRays: 4096,
-          maxDuration: 2,
-          maxOrder: 1,
-          diffuseSamples: 32,
-        },
-      }}
-    >
-      {/* scene contents */}
-    </SteamAudio>
+    ```tsx twoslash {11-21}
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import { SteamAudio } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{
+                reflections: {
+                  maxRays: 4096,
+                  maxDuration: 2,
+                  maxOrder: 1,
+                  diffuseSamples: 32,
+                },
+              }}
+            >
+              {/* scene contents */}
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
     ```
   </TabItem>
 </Tabs>
@@ -105,12 +123,18 @@ Direct-path simulation and reflection simulation are driven by [`world.step(delt
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {17-18}
     import { createWorld } from 'three-steam-audio'
+    import { Vector3, Quaternion } from 'three'
 
+    const audioContext = new AudioContext()
     const world = await createWorld({ audioContext })
     const source = world.createSource()
 
+    // ---cut-start---
+    declare const camera: { position: Vector3; quaternion: Quaternion }
+    declare const sourceObject: { position: Vector3; quaternion: Quaternion }
+    // ---cut-end---
     const animate = (delta: number) => {
       requestAnimationFrame(animate)
 
@@ -128,7 +152,7 @@ Direct-path simulation and reflection simulation are driven by [`world.step(delt
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```text
     // <SteamAudio> calls world.step(delta) automatically each frame.
     // You only need to call it yourself if you pass an owned world
     // into <SteamAudio world={world}>.
@@ -146,7 +170,12 @@ After creating a world with reflections enabled, you can reduce quality to save 
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {3-9}
+    import { createWorld } from 'three-steam-audio'
+
+    // ---cut-start---
+    declare const world: Awaited<ReturnType<typeof createWorld>>
+    // ---cut-end---
     world.setReflectionSettings({
       rays: 2048,
       bounces: 8,
@@ -157,17 +186,22 @@ After creating a world with reflections enabled, you can reduce quality to save 
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
-    // Call the same method through useSteamAudio().
-    const { world } = useSteamAudio()
+    ```tsx twoslash
+    import { useSteamAudio } from 'three-steam-audio/react'
 
-    world.setReflectionSettings({
-      rays: 2048,
-      bounces: 8,
-      duration: 1.5,
-      order: 1,
-      irradianceMinDistance: 1,
-    })
+    export const Settings = () => {
+      const { world } = useSteamAudio()
+
+      world.setReflectionSettings({
+        rays: 2048,
+        bounces: 8,
+        duration: 1.5,
+        order: 1,
+        irradianceMinDistance: 1,
+      })
+
+      return null
+    }
     ```
   </TabItem>
 </Tabs>
@@ -180,12 +214,17 @@ A world holds native and Web Audio resources. Dispose it when the scene unloads 
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    // ---cut-start---
+    declare const world: Awaited<ReturnType<typeof createWorld>>
+    // ---cut-end---
     world.dispose()
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```text
     // <SteamAudio> disposes its owned world automatically when unmounted.
     // If you passed an existing world, you are responsible for disposing it.
     ```

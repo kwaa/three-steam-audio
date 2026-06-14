@@ -10,7 +10,7 @@ The `three-steam-audio/react` entry point provides declarative components for Re
 
 Provider that owns or receives a [`World`](/reference/world/). It runs `world.step(delta)` automatically each frame.
 
-```tsx
+```tsx twoslash
 import { SteamAudio } from 'three-steam-audio/react'
 ```
 
@@ -36,7 +36,9 @@ import { SteamAudio } from 'three-steam-audio/react'
 
 ## `useSteamAudio()`
 
-```ts
+```ts twoslash
+import { useSteamAudio } from 'three-steam-audio/react'
+
 const { listener, scene, world } = useSteamAudio()
 ```
 
@@ -71,7 +73,9 @@ Creates optional reflection and reverb buses and wires them to a destination.
 
 ## `useSteamAudioEnvironment()`
 
-```ts
+```ts twoslash
+import { useSteamAudioEnvironment } from 'three-steam-audio/react'
+
 const { reflectionBus, reverbBus } = useSteamAudioEnvironment()
 ```
 
@@ -146,13 +150,22 @@ All other props are forwarded to the inner `<group>`.
 
 Lower-level hook that creates a source and node tied to an `Object3D` ref.
 
-```ts
-const { node, source } = useSteamAudioSource(objectRef, settings)
+```ts twoslash
+import { useRef } from 'react'
+import { useSteamAudioSource } from 'three-steam-audio/react'
+import type { Object3D } from 'three'
+
+const objectRef = useRef<Object3D>(null)
+const { node, source } = useSteamAudioSource(objectRef)
 ```
 
 ## `SteamAudioSourceApi`
 
-```ts
+```ts twoslash
+import type { Group } from 'three'
+import type { SteamAudioNode } from 'three-steam-audio'
+import type { Source } from 'three-steam-audio'
+
 interface SteamAudioSourceApi {
   group: Group
   node: SteamAudioNode

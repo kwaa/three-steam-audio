@@ -19,8 +19,10 @@ Reflections must be enabled when the world is created. Choose upper bounds for r
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {5-13}
     import { createWorld } from 'three-steam-audio'
+
+    const audioContext = new AudioContext()
 
     const world = await createWorld({
       audioContext,
@@ -34,7 +36,7 @@ Reflections must be enabled when the world is created. Choose upper bounds for r
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {11-21}
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import { SteamAudio } from 'three-steam-audio/react'
@@ -72,9 +74,10 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {14,17,25}
     import { createWorld } from 'three-steam-audio'
 
+    const audioContext = new AudioContext()
     const world = await createWorld({
       audioContext,
       reflections: {
@@ -106,7 +109,7 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import {
@@ -160,9 +163,10 @@ A [`ReverbBusNode`](/reference/audio-nodes/) renders listener-centric reverb. En
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {9-11,13-14,24}
     import { createWorld } from 'three-steam-audio'
 
+    const audioContext = new AudioContext()
     const world = await createWorld({
       audioContext,
       reflections: { maxRays: 4096 },
@@ -187,7 +191,7 @@ A [`ReverbBusNode`](/reference/audio-nodes/) renders listener-centric reverb. En
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import {
@@ -244,7 +248,12 @@ You can reduce CPU usage at runtime without recreating the world:
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {3-9}
+    import { createWorld } from 'three-steam-audio'
+
+    // ---cut-start---
+    declare const world: Awaited<ReturnType<typeof createWorld>>
+    // ---cut-end---
     world.setReflectionSettings({
       rays: 1024,
       bounces: 4,
@@ -254,15 +263,21 @@ You can reduce CPU usage at runtime without recreating the world:
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
-    const { world } = useSteamAudio()
+    ```tsx twoslash
+    import { useSteamAudio } from 'three-steam-audio/react'
 
-    world.setReflectionSettings({
-      rays: 1024,
-      bounces: 4,
-      duration: 1,
-      order: 0,
-    })
+    export const Settings = () => {
+      const { world } = useSteamAudio()
+
+      world.setReflectionSettings({
+        rays: 1024,
+        bounces: 4,
+        duration: 1,
+        order: 0,
+      })
+
+      return null
+    }
     ```
   </TabItem>
 </Tabs>

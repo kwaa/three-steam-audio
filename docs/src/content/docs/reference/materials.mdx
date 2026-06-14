@@ -57,12 +57,16 @@ Three Steam Audio ships with a small set of frozen acoustic material presets. Al
 
 You can define your own materials:
 
-```ts
+```ts twoslash
+import { Materials } from 'three-steam-audio'
+
 const carpet = {
   absorption: [0.30, 0.45, 0.60],
   scattering: 0.20,
   transmission: [0.10, 0.05, 0.02],
 } as const
+
+const combined = [Materials.concrete, carpet]
 ```
 
 See [`AcousticMaterial`](/reference/scene/#acousticmaterial) for the full interface.

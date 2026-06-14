@@ -14,9 +14,10 @@ Create a source from a world, then create an audio node for it.
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {6-13,15}
     import { createWorld } from 'three-steam-audio'
 
+    const audioContext = new AudioContext()
     const world = await createWorld({ audioContext })
 
     const source = world.createSource({
@@ -37,7 +38,7 @@ Create a source from a world, then create an audio node for it.
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {27-34}
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import {
@@ -89,7 +90,16 @@ The simulator needs the source position and orientation every frame. Three Steam
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {7-8,11}
+    import { createWorld } from 'three-steam-audio'
+    import { Vector3, Quaternion } from 'three'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
+    // ---cut-start---
+    declare const object: { position: Vector3; quaternion: Quaternion }
+    // ---cut-end---
     source.setPosition(object.position)
     source.setOrientation(object.quaternion)
 
@@ -98,7 +108,12 @@ The simulator needs the source position and orientation every frame. Three Steam
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {3-7}
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource
       input={input}
       position={[0, 1, -2]}
@@ -118,7 +133,12 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     // Inverse distance, custom minimum distance.
     source.setSettings({
       distanceAttenuation: { model: 'inverse', minDistance: 1 },
@@ -139,7 +159,12 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {5-12}
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource
       input={input}
       settings={{
@@ -161,7 +186,12 @@ Air absorption models how high frequencies attenuate faster than low frequencies
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     source.setSettings({
       directSimulation: {
         airAbsorption: true,
@@ -171,7 +201,12 @@ Air absorption models how high frequencies attenuate faster than low frequencies
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource input={input} airAbsorption />
     ```
   </TabItem>
@@ -183,7 +218,12 @@ A source can emit sound with a directional pattern. Three Steam Audio supports a
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     source.setSettings({
       directivity: {
         dipoleWeight: 0.5,
@@ -193,7 +233,12 @@ A source can emit sound with a directional pattern. Three Steam Audio supports a
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource
       input={input}
       directivity={{ dipoleWeight: 0.5, dipolePower: 2 }}
@@ -208,7 +253,12 @@ Occlusion traces rays from listener to source to determine how much of the sourc
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     source.setSettings({
       directSimulation: {
         occlusion: 'raycast',
@@ -222,7 +272,12 @@ Occlusion traces rays from listener to source to determine how much of the sourc
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource
       input={input}
       occlusion="raycast"
@@ -242,12 +297,22 @@ Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` i
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     source.setSettings({ spatialBlend: 0.75 })
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
     <SteamAudioSource input={input} spatialBlend={0.75} />
     ```
   </TabItem>
@@ -259,7 +324,12 @@ You can read the latest direct simulation results from a source. This is useful 
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {6,8-12}
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
     const outputs = source.getDirectOutputs()
 
     console.log(outputs.distanceAttenuation)
@@ -270,13 +340,23 @@ You can read the latest direct simulation results from a source. This is useful 
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
-    const { source } = useSteamAudioSource(meshRef)
+    ```tsx twoslash
+    import { useRef } from 'react'
+    import { useFrame } from '@react-three/fiber'
+    import { useSteamAudioSource } from 'three-steam-audio/react'
+    import type { Object3D } from 'three'
 
-    useFrame(() => {
-      const outputs = source.getDirectOutputs()
-      console.log(outputs.occlusion)
-    })
+    export const Metrics = () => {
+      const meshRef = useRef<Object3D>(null)
+      const { source } = useSteamAudioSource(meshRef)
+
+      useFrame(() => {
+        const outputs = source.getDirectOutputs()
+        console.log(outputs.occlusion)
+      })
+
+      return null
+    }
     ```
   </TabItem>
 </Tabs>
@@ -289,13 +369,19 @@ Outputs are only updated after `world.step(delta)` runs and the simulator produc
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+    const node = world.createNode(source)
+
     node.dispose()   // disconnects the audio node
     source.dispose() // releases the source
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```text
     // <SteamAudioSource> disposes its source and node automatically
     // when it unmounts.
     ```

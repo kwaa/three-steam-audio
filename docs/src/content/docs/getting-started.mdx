@@ -51,7 +51,7 @@ This example creates a [`World`](/reference/world/), adds a simple source, and c
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {10,15}
     import { createWorld } from 'three-steam-audio'
 
     const audioContext = new AudioContext()
@@ -101,7 +101,7 @@ This example creates a [`World`](/reference/world/), adds a simple source, and c
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {33-38}
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import {

@@ -179,6 +179,16 @@ importers:
       starlight-theme-nova:
         specifier: 'catalog:'
         version: 0.11.11(@astrojs/starlight@0.40.0(astro@6.4.6(@types/node@25.9.2)(jiti@2.7.0)(lightningcss@1.32.0)(rollup@4.62.0)(yaml@2.9.0))(typescript@6.0.3))(typescript@6.0.3)
+    devDependencies:
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.17
+      '@types/three':
+        specifier: 'catalog:'
+        version: 0.184.1
+      three-steam-audio:
+        specifier: 'workspace:'
+        version: link:../packages/three-steam-audio
 
   examples/react:
     dependencies:

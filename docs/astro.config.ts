@@ -9,7 +9,15 @@ export default defineConfig({
   integrations: [
     starlight({
       expressiveCode: {
-        plugins: [ecTwoSlash()],
+        plugins: [
+          ecTwoSlash({
+            twoslashOptions: {
+              compilerOptions: {
+                jsx: 4,
+              },
+            },
+          }),
+        ],
       },
       plugins: [
         starlightThemeNova(),

@@ -14,11 +14,16 @@ Static geometry never moves. It is the cheapest type of acoustic geometry and sh
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {6-10,12}
     import { createWorld, Materials } from 'three-steam-audio'
+    import { BufferGeometry, Object3D } from 'three'
 
-    const world = await createWorld({ audioContext })
+    const world = await createWorld({ audioContext: new AudioContext() })
 
+    // ---cut-start---
+    declare const roomGeometry: BufferGeometry
+    declare const room: Object3D
+    // ---cut-end---
     world.scene.addStaticMesh({
       geometry: roomGeometry,
       material: Materials.concrete,
@@ -29,7 +34,7 @@ Static geometry never moves. It is the cheapest type of acoustic geometry and sh
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {19-21}
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
     import { Materials } from 'three-steam-audio'
@@ -38,7 +43,11 @@ Static geometry never moves. It is the cheapest type of acoustic geometry and sh
       SteamAudio,
       SteamAudioListener,
     } from 'three-steam-audio/react'
+    import type { BufferGeometry } from 'three'
 
+    // ---cut-start---
+    declare const roomGeometry: BufferGeometry
+    // ---cut-end---
     export const App = () => {
       const [audioContext] = useState(() => new AudioContext())
 
@@ -71,11 +80,16 @@ Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash {6-10,18-20}
     import { createWorld, Materials } from 'three-steam-audio'
+    import { BufferGeometry, Mesh, Object3D } from 'three'
 
-    const world = await createWorld({ audioContext })
+    const world = await createWorld({ audioContext: new AudioContext() })
 
+    // ---cut-start---
+    declare const doorGeometry: BufferGeometry
+    declare const door: Object3D & { position: Mesh['position'] }
+    // ---cut-end---
     const handle = world.scene.addDynamicMesh({
       geometry: doorGeometry,
       material: Materials.wood,
@@ -97,12 +111,15 @@ Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {10-14}
     import { useRef } from 'react'
     import { Materials } from 'three-steam-audio'
     import { AcousticMesh } from 'three-steam-audio/react'
-    import type { Group } from 'three'
+    import type { Group, BufferGeometry } from 'three'
 
+    // ---cut-start---
+    declare const doorGeometry: BufferGeometry
+    // ---cut-end---
     export const Door = () => {
       const ref = useRef<Group>(null)
 
@@ -126,7 +143,7 @@ Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale
 
 A material describes how sound interacts with a surface. It contains absorption coefficients, a scattering value, and optional transmission coefficients.
 
-```ts
+```ts twoslash
 const material = {
   absorption: [0.10, 0.05, 0.02], // low, mid, high
   scattering: 0.05,
@@ -142,7 +159,16 @@ You can assign different materials to different triangles in a mesh by passing a
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld, Materials } from 'three-steam-audio'
+    import { BufferGeometry, Object3D } from 'three'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+
+    // ---cut-start---
+    declare const roomGeometry: BufferGeometry
+    declare const room: Object3D
+    // ---cut-end---
     world.scene.addStaticMesh({
       geometry: roomGeometry,
       material: [Materials.concrete, Materials.glass],
@@ -151,7 +177,14 @@ You can assign different materials to different triangles in a mesh by passing a
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```tsx twoslash {5-7}
+    import { Materials } from 'three-steam-audio'
+    import { AcousticMesh } from 'three-steam-audio/react'
+    import type { BufferGeometry } from 'three'
+
+    // ---cut-start---
+    declare const roomGeometry: BufferGeometry
+    // ---cut-end---
     <AcousticMesh material={[Materials.concrete, Materials.glass]}>
       <mesh geometry={roomGeometry} />
     </AcousticMesh>
@@ -165,13 +198,21 @@ In Three.js, material indices are read from the geometry's `materialIndex` attri
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">
-    ```ts
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+    import { BufferGeometry } from 'three'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+
+    // ---cut-start---
+    declare const handle: ReturnType<typeof world.scene.addStaticMesh>
+    // ---cut-end---
     handle.dispose()
     world.scene.commit()
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
-    ```tsx
+    ```text
     // <AcousticMesh> disposes its handles automatically when unmounted.
     ```
   </TabItem>

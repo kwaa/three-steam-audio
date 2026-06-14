@@ -15,5 +15,10 @@
     "expressive-code-twoslash": "catalog:",
     "sharp": "catalog:",
     "starlight-theme-nova": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/three": "catalog:",
+    "three-steam-audio": "workspace:"
   }
 }
