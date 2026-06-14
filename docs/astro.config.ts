@@ -18,6 +18,7 @@ export default defineConfig({
             },
           }),
         ],
+        themes: ['one-light', 'github-dark-dimmed'],
       },
       plugins: [
         starlightThemeNova(),
