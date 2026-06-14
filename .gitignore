@@ -32,3 +32,6 @@ packages/three-steam-audio/THIRDPARTY.md
 # private docs
 docs/private
 docs/spark
+
+# astro dist
+.astro
