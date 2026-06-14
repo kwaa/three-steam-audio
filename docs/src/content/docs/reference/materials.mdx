@@ -1,0 +1,68 @@
+---
+title: Materials
+sidebar:
+  order: 7
+---
+
+Three Steam Audio ships with a small set of frozen acoustic material presets. All absorption and transmission values are three-band `[low, mid, high]` arrays, and scattering is a single value in `[0, 1]`.
+
+## `Materials.concrete`
+
+```ts
+{
+  absorption: [0.10, 0.05, 0.02],
+  scattering: 0.05,
+}
+```
+
+## `Materials.generic`
+
+```ts
+{
+  absorption: [0.10, 0.20, 0.30],
+  scattering: 0.05,
+}
+```
+
+## `Materials.glass`
+
+```ts
+{
+  absorption: [0.13, 0.20, 0.24],
+  scattering: 0.05,
+  transmission: [0.06, 0.03, 0.02],
+}
+```
+
+## `Materials.metal`
+
+```ts
+{
+  absorption: [0.20, 0.07, 0.06],
+  scattering: 0.05,
+  transmission: [0.03, 0.02, 0.01],
+}
+```
+
+## `Materials.wood`
+
+```ts
+{
+  absorption: [0.11, 0.07, 0.06],
+  scattering: 0.05,
+}
+```
+
+## Custom materials
+
+You can define your own materials:
+
+```ts
+const carpet = {
+  absorption: [0.30, 0.45, 0.60],
+  scattering: 0.20,
+  transmission: [0.10, 0.05, 0.02],
+} as const
+```
+
+See [`AcousticMaterial`](/reference/scene/#acousticmaterial) for the full interface.

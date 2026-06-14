@@ -1,0 +1,161 @@
+---
+title: React Components
+sidebar:
+  order: 6
+---
+
+The `three-steam-audio/react` entry point provides declarative components for React Three Fiber.
+
+## `<SteamAudio>`
+
+Provider that owns or receives a [`World`](/reference/world/). It runs `world.step(delta)` automatically each frame.
+
+```tsx
+import { SteamAudio } from 'three-steam-audio/react'
+```
+
+### Props
+
+`audioContext`
+: Required when creating an owned world. The `AudioContext` to use.
+
+`options`
+: `Omit<WorldOptions, 'audioContext'>` — options passed to `createWorld`.
+
+`world`
+: An existing `World` to use instead of creating one.
+
+`paused`
+: `boolean` — when `true`, `world.step` is not called. Default: `false`.
+
+`updatePriority`
+: `number` — R3F `useFrame` priority. Default: `-100`.
+
+`children`
+: React nodes rendered inside the provider.
+
+## `useSteamAudio()`
+
+```ts
+const { listener, scene, world } = useSteamAudio()
+```
+
+Returns the current world, listener, and scene. Must be called inside `<SteamAudio>`.
+
+## `<SteamAudioListener>`
+
+Synchronizes the R3F camera (or a custom object) to `world.listener`.
+
+### Props
+
+`object`
+: Optional ref to an `Object3D` to use as the listener transform. Defaults to the R3F camera.
+
+## `<SteamAudioEnvironment>`
+
+Creates optional reflection and reverb buses and wires them to a destination.
+
+### Props
+
+`destination`
+: `AudioNode | null` — where buses are connected. Defaults to `world.audioContext.destination`.
+
+`reflections`
+: `boolean | ReflectionBusSettings` — enables and configures a reflection bus.
+
+`reverb`
+: `false | (ReverbBusSettings & ReverbSettings)` — enables and configures a reverb bus, and configures listener reverb.
+
+`children`
+: React nodes rendered inside the environment context.
+
+## `useSteamAudioEnvironment()`
+
+```ts
+const { reflectionBus, reverbBus } = useSteamAudioEnvironment()
+```
+
+Returns the buses created by the nearest `<SteamAudioEnvironment>`, if any.
+
+## `<AcousticMesh>`
+
+Wraps children meshes and registers them as acoustic geometry.
+
+### Props
+
+`material`
+: `AcousticMaterial | readonly AcousticMaterial[] | ((mesh: Mesh) => AcousticMaterial | readonly AcousticMaterial[])` — material or materials to apply.
+
+`dynamic`
+: `boolean` — registers meshes as dynamic geometry. Default: `false`.
+
+All other props are forwarded to the inner `<group>`.
+
+:::warning
+Does not support `SkinnedMesh` or morph targets.
+:::
+
+## `<SteamAudioSource>`
+
+Declarative source component.
+
+### Props
+
+`input`
+: `AudioNode | null` — the mono audio input.
+
+`destination`
+: `AudioNode | null` — where to connect the node's main output.
+
+`hrtf`
+: `boolean`.
+
+`airAbsorption`
+: `boolean`.
+
+`occlusion`
+: `'raycast' | 'volumetric' | false`.
+
+`transmission`
+: `'frequency-dependent' | 'frequency-independent' | boolean`.
+
+`directivity`
+: `{ dipoleWeight?: number, dipolePower?: number }`.
+
+`spatialBlend`
+: `number`.
+
+`reflections`
+: `SourceSettings['reflections']`.
+
+`reflectionSend`
+: `number` — gain to the environment reflection bus.
+
+`reverbSend`
+: `number` — gain to the environment reverb bus.
+
+`settings`
+: `SourceSettings` — full source settings object. Other props are merged into this object.
+
+`onReady`
+: `(api: SteamAudioSourceApi) => void` — called when the source group is mounted.
+
+All other props are forwarded to the inner `<group>`.
+
+## `useSteamAudioSource(object, settings?)`
+
+Lower-level hook that creates a source and node tied to an `Object3D` ref.
+
+```ts
+const { node, source } = useSteamAudioSource(objectRef, settings)
+```
+
+## `SteamAudioSourceApi`
+
+```ts
+interface SteamAudioSourceApi {
+  group: Group
+  node: SteamAudioNode
+  source: Source
+}
+```

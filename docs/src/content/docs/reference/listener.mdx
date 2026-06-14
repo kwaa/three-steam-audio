@@ -1,0 +1,52 @@
+---
+title: Listener
+sidebar:
+  order: 3
+---
+
+The `Listener` represents the position and orientation of the player. It is accessed via [`world.listener`](/reference/world/) and is used for spatialization, occlusion rays, and reflection simulation.
+
+## Methods
+
+### `setPosition(position)`
+
+```ts
+listener.setPosition(position: Vector3Like): void
+```
+
+Sets the listener position in world space.
+
+### `setOrientation(orientation)`
+
+```ts
+listener.setOrientation(orientation: QuaternionLike): void
+```
+
+Sets the listener orientation as a quaternion.
+
+### `setTransform(position, orientation)`
+
+```ts
+listener.setTransform(
+  position: Vector3Like,
+  orientation: QuaternionLike,
+): void
+```
+
+Sets both position and orientation in one call, then updates the simulator and reflection worker.
+
+### `setReverb(settings)`
+
+```ts
+listener.setReverb(settings: false | ReverbSettings): void
+```
+
+Enables or disables listener-centric reverb. Requires the world to have been created with reflections enabled.
+
+## `ReverbSettings`
+
+`enabled`
+: `boolean` — default `true`.
+
+`reverbScale`
+: `ThreeBand` — per-band reverb scale. Default: `[1, 1, 1]`.

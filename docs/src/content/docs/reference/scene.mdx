@@ -1,0 +1,94 @@
+---
+title: Scene
+sidebar:
+  order: 4
+---
+
+The `AcousticScene` holds static and dynamic geometry used for occlusion, transmission, and reflection simulation. Access it through [`world.scene`](/reference/world/).
+
+## Methods
+
+### `addStaticMesh(input)`
+
+```ts
+scene.addStaticMesh(input: StaticMeshInput): AcousticMeshHandle
+```
+
+Adds static geometry to the scene.
+
+### `addDynamicMesh(input)`
+
+```ts
+scene.addDynamicMesh(input: DynamicMeshInput): DynamicAcousticMeshHandle
+```
+
+Adds rigid dynamic geometry to the scene. Scale is baked at creation time; only translation and rotation can be updated at runtime.
+
+### `commit()`
+
+```ts
+scene.commit(): void
+```
+
+Applies pending scene changes to the simulator. Must be called after adding, removing, or updating geometry.
+
+## `StaticMeshInput`
+
+`geometry`
+: `BufferGeometry` — the Three.js geometry to upload. Triangle winding order must be counter-clockwise for front-facing triangles.
+
+`material`
+: `AcousticMaterial | readonly AcousticMaterial[]` — acoustic material or materials.
+
+`matrixWorld`
+: `Matrix4` — optional world transform.
+
+## `DynamicMeshInput`
+
+Extends `StaticMeshInput` and requires:
+
+`matrixWorld`
+: `Matrix4` — the initial world transform. Used to bake scale.
+
+## `AcousticMeshHandle`
+
+```ts
+interface AcousticMeshHandle {
+  dispose: () => void
+}
+```
+
+## `DynamicAcousticMeshHandle`
+
+```ts
+interface DynamicAcousticMeshHandle extends AcousticMeshHandle {
+  setTransform: (matrixWorld: Matrix4) => void
+}
+```
+
+## `AcousticMaterial`
+
+```ts
+interface AcousticMaterial {
+  absorption: ThreeBand
+  scattering: number
+  transmission?: ThreeBand
+}
+```
+
+`absorption`
+: `[low, mid, high]` values in `[0, 1]`. Lower values mean more reflection.
+
+`scattering`
+: `number` in `[0, 1]` — how much sound is diffusely reflected.
+
+`transmission`
+: Optional `[low, mid, high]` values in `[0, 1]` — how much sound passes through the surface.
+
+## `ThreeBand`
+
+```ts
+type ThreeBand = readonly [number, number, number]
+```
+
+Three values representing low, mid, and high frequency bands.

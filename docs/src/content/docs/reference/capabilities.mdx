@@ -1,0 +1,49 @@
+---
+title: Capabilities
+sidebar:
+  order: 8
+---
+
+Use `detectCapabilities()` to check whether the current browser supports the features required by Three Steam Audio.
+
+## `detectCapabilities()`
+
+```ts
+function detectCapabilities(): SteamAudioCapabilities
+```
+
+Returns an object describing runtime support:
+
+`webAssembly`
+: `boolean` — `WebAssembly` is available.
+
+`audioWorklet`
+: `boolean` — `AudioWorkletNode` is available.
+
+`crossOriginIsolated`
+: `boolean` — the page is cross-origin isolated.
+
+`sharedArrayBuffer`
+: `boolean` — `SharedArrayBuffer` is available. This requires cross-origin isolation.
+
+`runtimeBaking`
+: `boolean` — always `false` in this version.
+
+`gpuSimulation`
+: `boolean` — always `false` in this version.
+
+## Example
+
+```ts
+import { detectCapabilities } from 'three-steam-audio'
+
+const caps = detectCapabilities()
+
+if (!caps.webAssembly || !caps.audioWorklet) {
+  console.error('Three Steam Audio is not supported in this browser')
+}
+
+if (!caps.sharedArrayBuffer) {
+  console.warn('Control updates will use postMessage fallback')
+}
+```

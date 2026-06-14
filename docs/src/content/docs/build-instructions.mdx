@@ -1,0 +1,135 @@
+---
+title: Build Instructions
+sidebar:
+  order: 6
+---
+
+This page explains how to build `three-steam-audio` from source. Most users can install the package from npm and skip this section.
+
+## Overview
+
+Building the project involves three main stages:
+
+1.  **Steam Audio core** — download dependencies and build the Steam Audio SDK as a WebAssembly static library.
+2.  **WASM bindings** — generate TypeScript declarations and compile the C bridge into `phonon_bindings.wasm` / `phonon_bindings.js`.
+3.  **npm packages** — build the TypeScript source and the documentation site.
+
+## Requirements
+
+The recommended development environment is managed with [Nix](https://nixos.org). The project's `flake.nix` provides `cmake`, `emscripten`, `just`, `ninja`, and other native tools.
+
+- [Nix](https://nixos.org/download/) package manager with flakes enabled
+- [pnpm](https://pnpm.io/)
+- [Node.js](https://nodejs.org/) 24 or later
+- Git with submodules support
+
+:::note
+If you do not use Nix, you must provide the equivalent tools yourself: `cmake`, `python3`, `emscripten` (`emcc`), `just`, and a standard C++ build toolchain.
+:::
+
+## Clone the repository
+
+`three-steam-audio` includes the Steam Audio SDK as a Git submodule. Clone recursively so the `steam-audio/` directory is populated.
+
+```bash
+git clone --recursive https://github.com/kwaa/three-steam-audio.git
+cd three-steam-audio
+```
+
+If you already cloned without submodules, initialize them afterwards:
+
+```bash
+git submodule update --init --recursive
+```
+
+## Enter the development shell
+
+From the repository root, enter the Nix shell to get the required build tools:
+
+```bash
+nix develop
+```
+
+This sets `STEAMAUDIO_ROOT` to `$PWD/steam-audio` and puts `emcc`, `cmake`, `just`, and `ninja` on your path.
+
+## Install JavaScript dependencies
+
+```bash
+pnpm install
+```
+
+## Build the Steam Audio core
+
+Download the Steam Audio dependencies for WebAssembly and build the core library:
+
+```bash
+just get_dependencies
+just build-steam-audio
+```
+
+`just build-steam-audio` applies two small patches automatically:
+
+- `patches/steam-audio/flatbuffers-1.12-table-key-comparator.patch`
+- `patches/steam-audio/emscripten-synchronous-thread-pool.patch`
+
+The build produces static libraries under `steam-audio/core/bin/lib/wasm/` and headers under `steam-audio/core/bin/include/`.
+
+## Build the WASM bindings
+
+Generate TypeScript types and compile the C bindings into the package source tree:
+
+```bash
+just build-bindings
+```
+
+This writes the following files to `packages/three-steam-audio/src/bindings/`:
+
+- `phonon_bindings.js`
+- `phonon_bindings.wasm`
+- `phonon_bindings.d.ts`
+
+## Build the packages
+
+Compile the TypeScript source:
+
+```bash
+pnpm build
+```
+
+This builds the `three-steam-audio` package and any workspace dependents.
+
+## Run checks
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm test
+```
+
+## Build the documentation
+
+```bash
+pnpm dev:docs          # development server
+pnpm -F docs build     # static build
+```
+
+## Run the React example
+
+```bash
+pnpm dev:example-react
+```
+
+This starts the interactive demo in `examples/react/`, which shows HRTF spatialization, occlusion, transmission, and parametric reflections.
+
+## CI summary
+
+The `.github/workflows/check.yml` pipeline performs the following steps on every pull request:
+
+```bash
+nix develop --command just get_dependencies build-steam-audio build-bindings
+pnpm build
+pnpm typecheck
+pnpm lint
+pnpm test
+npm pack --dry-run
+```

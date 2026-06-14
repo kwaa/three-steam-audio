@@ -1,0 +1,143 @@
+---
+title: World
+sidebar:
+  order: 1
+---
+
+A `World` is created by [`createWorld()`](#createworldoptions) and is the factory for sources, audio nodes, reflection buses, and reverb buses. It also owns the acoustic [`scene`](/reference/scene/) and the [`listener`](/reference/listener/).
+
+## `createWorld(options)`
+
+```ts
+async function createWorld(options: WorldOptions): Promise<World>
+```
+
+Creates and initializes a world. This function loads the Steam Audio WASM module, fetches the AudioWorklet processor, and adds it to the provided `AudioContext`.
+
+## `WorldOptions`
+
+`audioContext`
+: Required. The `AudioContext` that all audio nodes created from this world will use.
+
+`maxSources`
+: Maximum number of sources that can exist simultaneously. Default: `32`.
+
+`frameSize`
+: Number of samples processed per audio frame. Default: `1024`.
+
+`simulationRate`
+: How often direct simulation runs, in Hz. Default: `60`.
+
+`reflectionRate`
+: How often reflection simulation runs, in Hz. Default: `10`.
+
+`quality`
+: Quality preset that affects `maxOcclusionSamples`. One of `'low'`, `'medium'`, `'high'`. Default: `'medium'`.
+
+`reflections`
+: `false` to disable reflections, or an object with upper bounds:
+  - `maxRays` — default `4096`
+  - `maxDuration` — default `2`
+  - `maxOrder` — default `1`
+  - `diffuseSamples` — default `32`
+
+`simulation`
+: Advanced simulation settings, including `maxRays`, `maxDuration`, `maxOrder`, `diffuseSamples`, `maxOcclusionSamples`, `rayBatchSize`, and `pathingVisibilitySamples`.
+
+`moduleFactory`
+: Optional custom factory used to instantiate the Emscripten module.
+
+## Properties
+
+`world.audioContext`
+: The `AudioContext` passed to `createWorld`.
+
+`world.listener`
+: The world's [`Listener`](/reference/listener/).
+
+`world.scene`
+: The world's [`AcousticScene`](/reference/scene/).
+
+## Methods
+
+### `createSource(settings?)`
+
+```ts
+world.createSource(settings?: SourceSettings): Source
+```
+
+Creates a new source. Throws if `maxSources` would be exceeded. See [`SourceSettings`](/reference/source/#sourcesettings).
+
+### `createNode(source)`
+
+```ts
+world.createNode(source: Source): SteamAudioNode
+```
+
+Creates an AudioWorklet node for the given source. The source must have been created by this world.
+
+### `createReflectionBus(settings?)`
+
+```ts
+world.createReflectionBus(settings?: ReflectionBusSettings): ReflectionBusNode
+```
+
+Creates a bus for rendering per-source reflections. Requires reflections to be enabled for the world.
+
+### `createReverbBus(settings?)`
+
+```ts
+world.createReverbBus(settings?: ReverbBusSettings): ReverbBusNode
+```
+
+Creates a bus for rendering listener reverb. Requires reflections to be enabled for the world.
+
+### `setReflectionSettings(settings)`
+
+```ts
+world.setReflectionSettings(settings: RuntimeSimulationSettings): void
+```
+
+Tunes reflection simulation at runtime. All values are clamped to the maximums declared in `WorldOptions`.
+
+`settings.rays`
+: Number of reflection rays to trace. Must not exceed `maxRays`.
+
+`settings.bounces`
+: Maximum number of bounces per ray.
+
+`settings.duration`
+: Simulation duration in seconds. Must not exceed `maxDuration`.
+
+`settings.order`
+: Ambisonic order. Must not exceed `maxOrder`.
+
+`settings.irradianceMinDistance`
+: Minimum distance for irradiance sampling.
+
+### `step(delta)`
+
+```ts
+world.step(delta: number): void
+```
+
+Advances simulation by `delta` seconds. Runs direct simulation and, if enabled, reflection simulation according to their configured rates. Returns early if the `AudioContext` is not running.
+
+### `dispose()`
+
+```ts
+world.dispose(): void
+```
+
+Releases all native resources, audio nodes, buses, sources, and scene geometry.
+
+## `SteamAudioError`
+
+```ts
+class SteamAudioError extends Error {
+  operation: string
+  status: string
+}
+```
+
+Thrown when a world, source, or audio node operation fails. `operation` identifies the function that failed, and `status` contains a short description of the failure.

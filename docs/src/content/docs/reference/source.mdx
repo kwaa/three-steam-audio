@@ -1,0 +1,161 @@
+---
+title: Source
+sidebar:
+  order: 2
+---
+
+A `Source` represents an emitting sound source. It stores transform and simulation settings, and one or more [`SteamAudioNode`](/reference/audio-nodes/) render its audio.
+
+## Methods
+
+### `setPosition(position)`
+
+```ts
+source.setPosition(position: Vector3Like): void
+```
+
+Sets the source position in world space.
+
+### `setOrientation(orientation)`
+
+```ts
+source.setOrientation(orientation: QuaternionLike): void
+```
+
+Sets the source orientation as a quaternion.
+
+### `setTransform(position, orientation)`
+
+```ts
+source.setTransform(position: Vector3Like, orientation: QuaternionLike): void
+```
+
+Sets both position and orientation in one call.
+
+### `setSettings(settings)`
+
+```ts
+source.setSettings(settings: Partial<SourceSettings>): void
+```
+
+Updates source settings at runtime. See [`SourceSettings`](#sourcesettings).
+
+### `setDirectOverrides(overrides)`
+
+```ts
+source.setDirectOverrides(overrides: DirectOverrides | null): void
+```
+
+Manually overrides distance attenuation, air absorption, directivity, occlusion, and transmission values sent to the audio node. Pass `null` to clear overrides.
+
+### `getDirectOutputs(target?)`
+
+```ts
+source.getDirectOutputs(target?: DirectOutputs): DirectOutputs
+```
+
+Returns the latest direct simulation outputs. The optional `target` object is mutated and returned, which can reduce allocations.
+
+### `dispose()`
+
+```ts
+source.dispose(): void
+```
+
+Disposes the source and any nodes connected to it.
+
+## `SourceSettings`
+
+`hrtf`
+: `boolean` — enables HRTF-based binaural rendering. Default: `true`.
+
+`spatialBlend`
+: `number` in `[0, 1]` — blend between spatialized and unspatialized audio. Default: `1`.
+
+`distanceAttenuation`
+: `DistanceAttenuationSettings | false` — distance attenuation model, or `false` to disable.
+
+`directivity`
+: `{ dipoleWeight?: number, dipolePower?: number }` — directional emission pattern.
+
+`directSimulation`
+: `boolean | DirectSimulationSettings` — enables or configures direct-path simulation. Pass `false` to disable.
+
+`reflections`
+: `boolean | ReflectionSettings` — enables or configures per-source reflections. Requires world reflections.
+
+## `DirectSimulationSettings`
+
+`airAbsorption`
+: `boolean` — enables default air absorption.
+
+`airAbsorptionModel`
+: `AirAbsorptionSettings` — custom air absorption model.
+
+`occlusion`
+: `'raycast' | 'volumetric' | false` — occlusion mode.
+
+`occlusionRadius`
+: `number` — apparent source radius for volumetric occlusion. Default: `1`.
+
+`occlusionSamples`
+: `number` — number of rays for volumetric occlusion. Default: `16`.
+
+`transmission`
+: `false | { type?: 'frequency-dependent' | 'frequency-independent' }` — transmission model. Requires occlusion.
+
+## `DistanceAttenuationSettings`
+
+`{ model: 'default' }`
+: Physics-based inverse-distance attenuation.
+
+`{ model: 'inverse', minDistance?: number }`
+: Inverse distance with a custom minimum distance.
+
+`{ model: 'curve', minDistance, maxDistance, curve, samples? }`
+: Custom curve function sampled into a lookup table.
+
+## `ReflectionSettings`
+
+`enabled`
+: `boolean` — enables per-source reflections.
+
+`reverbScale`
+: `ThreeBand` — per-band reverb scale. Default: `[1, 1, 1]`.
+
+`wet`
+: `number` in `[0, 1]` — reflection wet level. Default: `1`.
+
+## `DirectOverrides`
+
+`distanceAttenuation`
+: `number` in `[0, 1]`.
+
+`airAbsorption`
+: `ThreeBand`.
+
+`directivity`
+: `number` in `[0, 1]`.
+
+`occlusion`
+: `number` in `[0, 1]`.
+
+`transmission`
+: `ThreeBand`.
+
+## `DirectOutputs`
+
+`distanceAttenuation`
+: `number`.
+
+`airAbsorption`
+: `[number, number, number]`.
+
+`directivity`
+: `number`.
+
+`occlusion`
+: `number`.
+
+`transmission`
+: `[number, number, number]`.

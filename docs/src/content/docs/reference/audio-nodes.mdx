@@ -1,0 +1,105 @@
+---
+title: Audio Nodes
+sidebar:
+  order: 5
+---
+
+Three Steam Audio exposes three AudioWorklet-based nodes.
+
+## `SteamAudioNode`
+
+Created by [`world.createNode(source)`](/reference/world/#createnodesource). It renders a single source with direct effects, HRTF spatialization, and optional reflections/reverb sends.
+
+### Properties
+
+`source`
+: The [`Source`](/reference/source/) associated with this node.
+
+`ready`
+: `Promise<void>` resolved when the AudioWorklet processor has initialized.
+
+`state`
+: `'initializing' | 'ready' | 'failed' | 'disposed'`.
+
+`error`
+: `Error | undefined` set if initialization fails.
+
+### Methods
+
+#### `connectReflections(bus, options?)`
+
+```ts
+node.connectReflections(
+  bus: ReflectionBusNode,
+  options?: { gain?: number },
+): ReflectionConnection
+```
+
+Connects the source's reflection send to a reflection bus. Returns a connection with `disconnect()` and `setGain(gain)`.
+
+#### `connectReverb(bus, options?)`
+
+```ts
+node.connectReverb(
+  bus: ReverbBusNode,
+  options?: { gain?: number },
+): ReverbConnection
+```
+
+Connects the source's reverb send to a reverb bus.
+
+#### `dispose()`
+
+```ts
+node.dispose(): void
+```
+
+Disconnects and disposes the node.
+
+## `ReflectionBusNode`
+
+Created by [`world.createReflectionBus()`](/reference/world/#createreflectionbussettings). Renders per-source parametric reflections.
+
+### Methods
+
+#### `setWet(wet)`
+
+```ts
+bus.setWet(wet: number): void
+```
+
+Sets the bus wet level in `[0, ∞)`.
+
+#### `dispose()`
+
+```ts
+bus.dispose(): void
+```
+
+## `ReverbBusNode`
+
+Created by [`world.createReverbBus()`](/reference/world/#createreverbbussettings). Renders listener parametric reverb.
+
+### Methods
+
+#### `setWet(wet)`
+
+```ts
+bus.setWet(wet: number): void
+```
+
+Sets the bus wet level in `[0, ∞)`.
+
+#### `dispose()`
+
+```ts
+bus.dispose(): void
+```
+
+## `ReflectionConnection` / `ReverbConnection`
+
+`disconnect()`
+: Removes the send.
+
+`setGain(gain)`
+: Updates the send gain in `[0, ∞)`.

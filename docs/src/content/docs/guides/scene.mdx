@@ -1,0 +1,178 @@
+---
+title: Scene and Acoustic Geometry
+sidebar:
+  order: 4
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The acoustic scene contains the geometry that sound interacts with. Meshes in the scene are used for occlusion, transmission, and reflection simulation.
+
+## Static geometry
+
+Static geometry never moves. It is the cheapest type of acoustic geometry and should be used for walls, floors, terrain, and other fixed objects.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld, Materials } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext })
+
+    world.scene.addStaticMesh({
+      geometry: roomGeometry,
+      material: Materials.concrete,
+      matrixWorld: room.matrixWorld,
+    })
+
+    world.scene.commit()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import { Materials } from 'three-steam-audio'
+    import {
+      AcousticMesh,
+      SteamAudio,
+      SteamAudioListener,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio audioContext={audioContext}>
+              <SteamAudioListener />
+              <AcousticMesh material={Materials.concrete}>
+                <mesh geometry={roomGeometry} />
+              </AcousticMesh>
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+
+    Scene changes only take effect after calling [`world.scene.commit()`](/reference/scene/#commit). `<SteamAudio>` calls `commit` automatically at the end of each frame.
+  </TabItem>
+</Tabs>
+
+:::note
+In the Three.js API, you must call `world.scene.commit()` after adding, removing, or updating geometry.
+:::
+
+## Dynamic geometry
+
+Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale is baked when the mesh is added, so non-uniform or animated scaling is not supported.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld, Materials } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext })
+
+    const handle = world.scene.addDynamicMesh({
+      geometry: doorGeometry,
+      material: Materials.wood,
+      matrixWorld: door.matrixWorld,
+    })
+
+    world.scene.commit()
+
+    const animate = () => {
+      requestAnimationFrame(animate)
+
+      // Update the door transform.
+      door.position.x += 0.01
+      door.updateMatrixWorld()
+      handle.setTransform(door.matrixWorld)
+    }
+
+    animate()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { useRef } from 'react'
+    import { Materials } from 'three-steam-audio'
+    import { AcousticMesh } from 'three-steam-audio/react'
+    import type { Group } from 'three'
+
+    export const Door = () => {
+      const ref = useRef<Group>(null)
+
+      return (
+        <AcousticMesh dynamic material={Materials.wood} ref={ref}>
+          <group ref={ref}>
+            <mesh geometry={doorGeometry} />
+          </group>
+        </AcousticMesh>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+:::warning
+`<AcousticMesh>` does not support `SkinnedMesh` or meshes with morph targets. It also does not support animated non-rigid deformations.
+:::
+
+## Materials
+
+A material describes how sound interacts with a surface. It contains absorption coefficients, a scattering value, and optional transmission coefficients.
+
+```ts
+const material = {
+  absorption: [0.10, 0.05, 0.02], // low, mid, high
+  scattering: 0.05,
+  transmission: [0.06, 0.03, 0.02], // optional
+}
+```
+
+Three Steam Audio ships with a small set of frozen presets. See [Materials](/reference/materials/) for the full list.
+
+### Per-triangle materials
+
+You can assign different materials to different triangles in a mesh by passing an array of materials and material indices.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    world.scene.addStaticMesh({
+      geometry: roomGeometry,
+      material: [Materials.concrete, Materials.glass],
+      matrixWorld: room.matrixWorld,
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <AcousticMesh material={[Materials.concrete, Materials.glass]}>
+      <mesh geometry={roomGeometry} />
+    </AcousticMesh>
+    ```
+  </TabItem>
+</Tabs>
+
+In Three.js, material indices are read from the geometry's `materialIndex` attribute or the standard `groups`. In React, you can also pass a function that receives each `Mesh` and returns a material.
+
+## Removing geometry
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    handle.dispose()
+    world.scene.commit()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    // <AcousticMesh> disposes its handles automatically when unmounted.
+    ```
+  </TabItem>
+</Tabs>

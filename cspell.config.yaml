@@ -25,6 +25,7 @@ words:
   - moeru
   - nixpkgs
   - pkgs
+  - seti
   - sonarjs
   - spatialization
   - tsdown

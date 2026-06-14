@@ -1,0 +1,114 @@
+---
+title: Listener
+sidebar:
+  order: 3
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The listener represents the position and orientation of the player. Three Steam Audio uses the listener transform when spatializing sources, running occlusion rays, and simulating reflections.
+
+## Updating the listener
+
+The world exposes a single listener through [`world.listener`](/reference/world/). Update it each frame before calling `world.step(delta)`.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext })
+
+    const animate = () => {
+      requestAnimationFrame(animate)
+
+      world.listener.setPosition(camera.position)
+      world.listener.setOrientation(camera.quaternion)
+
+      world.step(1 / 60)
+    }
+
+    animate()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioListener,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio audioContext={audioContext}>
+              <SteamAudioListener />
+              {/* scene contents */}
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+
+    `<SteamAudioListener>` automatically synchronizes the R3F camera (or a custom object provided via the `object` prop) to `world.listener` each frame. Only one listener may be mounted per `<SteamAudio>` context.
+  </TabItem>
+</Tabs>
+
+## Listener reverb
+
+When reflections are enabled, you can ask the simulator to compute listener-centric reverb. This is useful for applying ambient reverberation to parts of your mix.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    world.listener.setReverb({
+      enabled: true,
+      reverbScale: [1.8, 1.6, 1.3],
+    })
+
+    // Disable reverb later:
+    world.listener.setReverb(false)
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioEnvironment,
+      SteamAudioListener,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{ reflections: { maxRays: 4096 } }}
+            >
+              <SteamAudioListener />
+              <SteamAudioEnvironment
+                reverb={{ reverbScale: [1.8, 1.6, 1.3], wet: 1 }}
+              >
+                {/* scene contents */}
+              </SteamAudioEnvironment>
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+See [Reflections and Reverb](/guides/reflections/) for how to render reverb through a [`ReverbBusNode`](/reference/audio-nodes/).

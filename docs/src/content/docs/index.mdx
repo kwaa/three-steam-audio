@@ -1,38 +1,36 @@
 ---
-title: Welcome to Starlight
-description: Get started building your docs site with Starlight.
-template: splash # Remove or comment out this line to display the site sidebar on this page.
+title: Three Steam Audio
+description: Spatial audio for Three.js and React Three Fiber, powered by Steam Audio.
+template: splash
 hero:
-  tagline: Congrats on setting up a new Starlight project!
+  tagline: Spatial audio for Three.js and React Three Fiber.
   actions:
-    - text: Example Guide
-      link: /guides/example/
+    - text: Getting Started
+      link: /getting-started/
       icon: right-arrow
-    - text: Read the Starlight docs
-      link: https://starlight.astro.build
-      icon: external
+    - text: View on GitHub
+      link: https://github.com/kwaa/three-steam-audio
+      icon: github
       variant: minimal
 ---
 
 import { Card, CardGrid } from '@astrojs/starlight/components';
 
-## Next steps
+## What is Three Steam Audio?
+
+**Three Steam Audio** brings Valve's [Steam Audio](https://github.com/ValveSoftware/steam-audio) SDK to the web, with first-class support for both imperative Three.js code and declarative [React Three Fiber](https://r3f.docs.pmnd.rs/) scenes.
 
 <CardGrid stagger>
-	<Card title="Update content" icon="pencil">
-		Edit `src/content/docs/index.mdx` to see this page change.
-	</Card>
-	<Card title="Change page layout" icon="document">
-		Delete `template: splash` in `src/content/docs/index.mdx` to display a
-		sidebar on this page.
-	</Card>
-	<Card title="Add new content" icon="add-document">
-		Add Markdown or MDX files to `src/content/docs` to create new pages.
-	</Card>
-	<Card title="Configure your site" icon="setting">
-		Edit your `sidebar` and other config in `astro.config.mjs`.
-	</Card>
-	<Card title="Read the docs" icon="open-book">
-		Learn more in [the Starlight Docs](https://starlight.astro.build/).
-	</Card>
+  <Card title="HRTF spatialization" icon="rocket">
+    Binaural rendering for headphones and accurate 3D positioning.
+  </Card>
+  <Card title="Direct path simulation" icon="seti:audio">
+    Distance attenuation, air absorption, directivity, occlusion, and transmission.
+  </Card>
+  <Card title="Acoustic geometry" icon="codePen">
+    Mark Three.js meshes as static or rigid dynamic acoustic geometry using built-in materials.
+  </Card>
+  <Card title="Parametric reflections" icon="seti:svg">
+    Real-time reflection simulation with per-source reflections and listener reverb.
+  </Card>
 </CardGrid>

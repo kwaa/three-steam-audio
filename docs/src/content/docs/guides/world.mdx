@@ -1,0 +1,193 @@
+---
+title: World and Initialization
+sidebar:
+  order: 1
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A [`World`](/reference/world/) is the top-level object that owns the Steam Audio WASM runtime, the acoustic scene, the simulator, and the listener. All other objects — sources, acoustic meshes, and audio nodes — are created from a world.
+
+## Creating a world
+
+To create a world, pass an `AudioContext` to [`createWorld()`](/reference/world/#createworldoptions). The function is asynchronous because it loads the WebAssembly module, fetches the worklet script, and adds the processor to the audio context.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const audioContext = new AudioContext()
+    await audioContext.resume()
+
+    const world = await createWorld({ audioContext })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import { SteamAudio } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio audioContext={audioContext}>
+              {/* scene contents */}
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+
+    `<SteamAudio>` creates and owns the world, and runs `world.step(delta)` automatically each frame. You can also pass an existing world with `<SteamAudio world={world}>` if you created it yourself.
+  </TabItem>
+</Tabs>
+
+## World options
+
+The most important options control how much simulation work the world performs.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `audioContext` | required | The `AudioContext` that all audio nodes created from this world will use. |
+| `maxSources` | `32` | Maximum simultaneous sources. |
+| `frameSize` | `1024` | Number of samples processed per audio frame. |
+| `simulationRate` | `60` | How often direct simulation runs, in Hz. |
+| `reflectionRate` | `10` | How often reflection simulation runs, in Hz. |
+| `quality` | `'medium'` | Affects `maxOcclusionSamples` (`low`: 32, `medium`: 128, `high`: 256). |
+| `reflections` | `false` | Enable and configure real-time reflections. See [Reflections and Reverb](/guides/reflections/). |
+
+If reflections are enabled, you must also specify their upper bounds at creation time:
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    const world = await createWorld({
+      audioContext,
+      reflections: {
+        maxRays: 4096,
+        maxDuration: 2,
+        maxOrder: 1,
+        diffuseSamples: 32,
+      },
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudio
+      audioContext={audioContext}
+      options={{
+        reflections: {
+          maxRays: 4096,
+          maxDuration: 2,
+          maxOrder: 1,
+          diffuseSamples: 32,
+        },
+      }}
+    >
+      {/* scene contents */}
+    </SteamAudio>
+    ```
+  </TabItem>
+</Tabs>
+
+These values reserve simulation memory. At runtime you can reduce `rays`, `bounces`, `duration`, and `order` via [`world.setReflectionSettings()`](/reference/world/#setreflectionsettingssettings), but you cannot exceed the initial maximums.
+
+## Stepping simulation
+
+Direct-path simulation and reflection simulation are driven by [`world.step(delta)`](/reference/world/#stepdelta). Call it every frame with the elapsed time in seconds. The world accumulates time internally and only runs the simulator when enough time has passed for the configured rate.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext })
+    const source = world.createSource()
+
+    const animate = (delta: number) => {
+      requestAnimationFrame(animate)
+
+      world.listener.setPosition(camera.position)
+      world.listener.setOrientation(camera.quaternion)
+
+      source.setPosition(sourceObject.position)
+      source.setOrientation(sourceObject.quaternion)
+
+      world.scene.commit()
+      world.step(delta)
+    }
+
+    requestAnimationFrame(animate)
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    // <SteamAudio> calls world.step(delta) automatically each frame.
+    // You only need to call it yourself if you pass an owned world
+    // into <SteamAudio world={world}>.
+    ```
+  </TabItem>
+</Tabs>
+
+:::note
+`world.step` returns early if the `AudioContext` is not running. Resume the context from a user gesture before expecting audio output.
+:::
+
+## Tuning reflections at runtime
+
+After creating a world with reflections enabled, you can reduce quality to save CPU or increase it temporarily for special moments:
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    world.setReflectionSettings({
+      rays: 2048,
+      bounces: 8,
+      duration: 1.5,
+      order: 1,
+      irradianceMinDistance: 1,
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    // Call the same method through useSteamAudio().
+    const { world } = useSteamAudio()
+
+    world.setReflectionSettings({
+      rays: 2048,
+      bounces: 8,
+      duration: 1.5,
+      order: 1,
+      irradianceMinDistance: 1,
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+Each value is clamped to the maximum declared when the world was created.
+
+## Cleanup
+
+A world holds native and Web Audio resources. Dispose it when the scene unloads to release WASM memory, audio nodes, and worklets.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    world.dispose()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    // <SteamAudio> disposes its owned world automatically when unmounted.
+    // If you passed an existing world, you are responsible for disposing it.
+    ```
+  </TabItem>
+</Tabs>

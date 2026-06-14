@@ -1,0 +1,303 @@
+---
+title: Sources
+sidebar:
+  order: 2
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+A [`Source`](/reference/source/) represents a single emitting sound source in the acoustic scene. It stores position, orientation, and simulation settings, and it produces a [`SteamAudioNode`](/reference/audio-nodes/) that you connect into the Web Audio graph.
+
+## Creating a source
+
+Create a source from a world, then create an audio node for it.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext })
+
+    const source = world.createSource({
+      hrtf: true,
+      directSimulation: {
+        airAbsorption: true,
+        occlusion: 'raycast',
+        transmission: { type: 'frequency-dependent' },
+      },
+    })
+
+    const node = world.createNode(source)
+
+    const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+    oscillator.connect(node)
+    node.connect(audioContext.destination)
+    oscillator.start()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useEffect, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioListener,
+      SteamAudioSource,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+      const [input, setInput] = useState<AudioNode | null>(null)
+
+      useEffect(() => {
+        const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+        oscillator.start()
+        setInput(oscillator)
+        return () => oscillator.stop()
+      }, [audioContext])
+
+      if (!input) return null
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio audioContext={audioContext}>
+              <SteamAudioListener />
+              <SteamAudioSource
+                input={input}
+                hrtf
+                airAbsorption
+                occlusion="raycast"
+                transmission="frequency-dependent"
+                position={[0, 1, -2]}
+              />
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+Sources are created with an upper bound set by `world.maxSources`. Creating more sources than the world allows throws a [`SteamAudioError`](/reference/world/#steamaudioerror).
+
+## Updating transform
+
+The simulator needs the source position and orientation every frame. Three Steam Audio uses the same right-handed, Y-up coordinate system as Three.js.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    source.setPosition(object.position)
+    source.setOrientation(object.quaternion)
+
+    // Or both at once:
+    source.setTransform(object.position, object.quaternion)
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource
+      input={input}
+      position={[0, 1, -2]}
+      rotation={[0, Math.PI / 2, 0]}
+    />
+    ```
+  </TabItem>
+</Tabs>
+
+## Direct simulation settings
+
+Direct simulation covers everything that happens along the straight line from source to listener:
+
+### Distance attenuation
+
+By default, a physics-based inverse-distance model is used. You can disable it, tune the minimum distance, or provide a custom curve:
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    // Inverse distance, custom minimum distance.
+    source.setSettings({
+      distanceAttenuation: { model: 'inverse', minDistance: 1 },
+    })
+
+    // Custom curve.
+    source.setSettings({
+      distanceAttenuation: {
+        model: 'curve',
+        minDistance: 1,
+        maxDistance: 18,
+        curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+      },
+    })
+
+    // Disable entirely.
+    source.setSettings({ distanceAttenuation: false })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource
+      input={input}
+      settings={{
+        distanceAttenuation: {
+          model: 'curve',
+          minDistance: 1,
+          maxDistance: 18,
+          curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+        },
+      }}
+    />
+    ```
+  </TabItem>
+</Tabs>
+
+### Air absorption
+
+Air absorption models how high frequencies attenuate faster than low frequencies over distance. Enable the default physics-based model or supply your own coefficients or curves.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    source.setSettings({
+      directSimulation: {
+        airAbsorption: true,
+        airAbsorptionModel: { model: 'default' },
+      },
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource input={input} airAbsorption />
+    ```
+  </TabItem>
+</Tabs>
+
+### Directivity
+
+A source can emit sound with a directional pattern. Three Steam Audio supports a weighted dipole pattern controlled by `dipoleWeight` and `dipolePower`.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    source.setSettings({
+      directivity: {
+        dipoleWeight: 0.5,
+        dipolePower: 2,
+      },
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource
+      input={input}
+      directivity={{ dipoleWeight: 0.5, dipolePower: 2 }}
+    />
+    ```
+  </TabItem>
+</Tabs>
+
+### Occlusion and transmission
+
+Occlusion traces rays from listener to source to determine how much of the source is visible. Transmission applies a material-dependent filter to the occluded portion of the sound.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    source.setSettings({
+      directSimulation: {
+        occlusion: 'raycast',
+        // Or volumetric occlusion:
+        // occlusion: 'volumetric',
+        // occlusionRadius: 1,
+        // occlusionSamples: 16,
+        transmission: { type: 'frequency-dependent' },
+      },
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource
+      input={input}
+      occlusion="raycast"
+      transmission="frequency-dependent"
+    />
+    ```
+  </TabItem>
+</Tabs>
+
+:::note
+Transmission requires occlusion to be enabled.
+:::
+
+### Spatial blend
+
+Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` is fully spatialized; `0` is unspatialized.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    source.setSettings({ spatialBlend: 0.75 })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    <SteamAudioSource input={input} spatialBlend={0.75} />
+    ```
+  </TabItem>
+</Tabs>
+
+## Reading simulation outputs
+
+You can read the latest direct simulation results from a source. This is useful for debugging, UI meters, or driving visual effects.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    const outputs = source.getDirectOutputs()
+
+    console.log(outputs.distanceAttenuation)
+    console.log(outputs.airAbsorption)    // [low, mid, high]
+    console.log(outputs.occlusion)
+    console.log(outputs.transmission)     // [low, mid, high]
+    console.log(outputs.directivity)
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    const { source } = useSteamAudioSource(meshRef)
+
+    useFrame(() => {
+      const outputs = source.getDirectOutputs()
+      console.log(outputs.occlusion)
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+:::note
+Outputs are only updated after `world.step(delta)` runs and the simulator produces new values.
+:::
+
+## Disposing a source
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    node.dispose()   // disconnects the audio node
+    source.dispose() // releases the source
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    // <SteamAudioSource> disposes its source and node automatically
+    // when it unmounts.
+    ```
+  </TabItem>
+</Tabs>

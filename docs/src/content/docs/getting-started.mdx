@@ -1,0 +1,160 @@
+---
+title: Getting Started
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+## Requirements
+
+Three Steam Audio runs in modern browsers that support:
+
+- **WebAssembly** — required to load the Steam Audio DSP runtime.
+- **AudioWorklet** — required for low-latency audio processing.
+- **`crossOriginIsolated`** and **SharedArrayBuffer** — optional but recommended. When available, control updates are sent to the AudioWorklet using shared memory with atomics. Otherwise, the library falls back to `postMessage`.
+
+You can check the current environment with [`detectCapabilities()`](/reference/capabilities/).
+
+:::note
+For `crossOriginIsolated` to be `true`, your page must be served with the headers `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (or `credentialless`). Without these headers, `SharedArrayBuffer` is unavailable and control updates fall back to message passing.
+:::
+
+## Installation
+
+Install `three-steam-audio` from your package manager. It is ESM-only with peer dependencies on `three`, and **optional** `react`, `@react-three/fiber`.
+
+<Tabs syncKey="packageManager">
+  <TabItem label="pnpm" icon="pnpm">
+  ```
+  pnpm add three-steam-audio three
+  ```
+  </TabItem>
+  <TabItem label="bun" icon="bun">
+  ```
+  bun add three-steam-audio three
+  ```
+  </TabItem>
+  <TabItem label="yarn" icon="seti:yarn">
+  ```
+  yarn add three-steam-audio three
+  ```
+  </TabItem>
+  <TabItem label="npm" icon="npm">
+  ```
+  npm i three-steam-audio three
+  ```
+  </TabItem>
+</Tabs>
+
+## Example: Spatializing an audio clip
+
+This example creates a [`World`](/reference/world/), adds a simple source, and connects the resulting [`SteamAudioNode`](/reference/audio-nodes/) to the audio output. Before any audio is heard, you must resume the `AudioContext` from a user gesture to satisfy browser autoplay policy.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const audioContext = new AudioContext()
+
+    // Resume from a user gesture, e.g. a button click.
+    await audioContext.resume()
+
+    const world = await createWorld({ audioContext })
+
+    const source = world.createSource({
+      hrtf: true,
+      directSimulation: { occlusion: 'raycast' },
+    })
+
+    const node = world.createNode(source)
+
+    // Connect an existing AudioNode as the mono input.
+    const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+    oscillator.connect(node)
+    node.connect(audioContext.destination)
+    oscillator.start()
+
+    // Move the listener and source each frame, then step simulation.
+    const animate = () => {
+      requestAnimationFrame(animate)
+
+      const time = performance.now() / 1000
+
+      world.listener.setPosition({ x: 0, y: 1.7, z: 0 })
+      world.listener.setOrientation({ x: 0, y: 0, z: 0, w: 1 })
+
+      source.setPosition({
+        x: Math.sin(time) * 2,
+        y: 1,
+        z: Math.cos(time) * 2,
+      })
+
+      world.step(1 / 60)
+    }
+    animate()
+
+    // Later, when shutting down:
+    // oscillator.stop()
+    // node.dispose()
+    // source.dispose()
+    // world.dispose()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useEffect, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioListener,
+      SteamAudioSource,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+      const [input, setInput] = useState<AudioNode | null>(null)
+
+      useEffect(() => {
+        const resume = () => audioContext.resume()
+        window.addEventListener('click', resume, { once: true })
+        return () => window.removeEventListener('click', resume)
+      }, [audioContext])
+
+      useEffect(() => {
+        const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+        oscillator.start()
+        setInput(oscillator)
+        return () => oscillator.stop()
+      }, [audioContext])
+
+      if (!input) return null
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio audioContext={audioContext}>
+              <SteamAudioListener />
+              <SteamAudioSource
+                input={input}
+                hrtf
+                occlusion="raycast"
+                position={[0, 1, -2]}
+              />
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+
+    `<SteamAudio>` owns the world and runs `world.step(delta)` automatically each frame inside a `useFrame` callback. You can also pass an existing world with `<SteamAudio world={world}>`.
+  </TabItem>
+</Tabs>
+
+[`SteamAudioNode`](/reference/audio-nodes/) initialization is asynchronous. Use `await node.ready` when playback must not begin until the AudioWorklet DSP runtime is ready. If initialization fails, `ready` rejects and `node.state` becomes `"failed"`; the node outputs silence instead of bypassing the unprocessed input.
+
+## Next steps
+
+- Read the [Programmer's Guide](/guides/world/) to learn how the world, sources, listener, and scene fit together.
+- Browse the [Reference](/reference/world/) for a complete list of options, methods, and React component props.
+- Look at the [React example](https://github.com/kwaa/three-steam-audio/tree/main/examples/react) for a full interactive scene with reflections.

@@ -15,17 +15,16 @@ export default defineConfig({
         starlightThemeNova(),
       ],
       sidebar: [
+        { label: 'Getting Started', slug: 'getting-started' },
         {
-          items: [
-            // Each item here is one entry in the navigation menu.
-            { label: 'Example Guide', slug: 'guides/example' },
-          ],
+          items: [{ autogenerate: { directory: 'guides' } }],
           label: 'Guides',
         },
         {
           items: [{ autogenerate: { directory: 'reference' } }],
           label: 'Reference',
         },
+        { label: 'Build Instructions', slug: 'build-instructions' },
       ],
       social: [{ href: 'https://github.com/kwaa/three-steam-audio', icon: 'github', label: 'GitHub' }],
       title: 'Three Steam Audio Docs',

@@ -1,0 +1,270 @@
+---
+title: Reflections and Reverb
+sidebar:
+  order: 5
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Three Steam Audio can simulate how sound reflects off surrounding geometry. This produces two renderable effects:
+
+- **Per-source reflections** — indirect sound that reaches the listener from a specific source.
+- **Listener reverb** — ambient reverberation at the listener position.
+
+Both effects use Steam Audio's **parametric reflection effect**. Convolution or hybrid reflection effects are not supported in this version because their IR handles cannot cross independent WASM runtimes.
+
+## Enabling reflections
+
+Reflections must be enabled when the world is created. Choose upper bounds for rays, duration, and Ambisonic order; these reserve native memory.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({
+      audioContext,
+      reflections: {
+        maxRays: 4096,
+        maxDuration: 2,
+        maxOrder: 1,
+        diffuseSamples: 32,
+      },
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import { SteamAudio } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{
+                reflections: {
+                  maxRays: 4096,
+                  maxDuration: 2,
+                  maxOrder: 1,
+                  diffuseSamples: 32,
+                },
+              }}
+            >
+              {/* scene contents */}
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Reflection buses
+
+A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections. Create one from the world, connect it to the audio destination, then connect each source to it.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({
+      audioContext,
+      reflections: {
+        maxRays: 4096,
+        maxDuration: 2,
+        maxOrder: 1,
+        diffuseSamples: 32,
+      },
+    })
+
+    const reflections = world.createReflectionBus({ wet: 1 })
+    reflections.connect(audioContext.destination)
+
+    const source = world.createSource({ reflections: { wet: 0.7 } })
+    const node = world.createNode(source)
+
+    const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+    oscillator.connect(node)
+    node.connect(audioContext.destination)
+    oscillator.start()
+
+    const connection = node.connectReflections(reflections, { gain: 1 })
+
+    // Later, change the send level:
+    connection.setGain(0.5)
+
+    // To disconnect:
+    // connection.disconnect()
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useEffect, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioEnvironment,
+      SteamAudioListener,
+      SteamAudioSource,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+      const [input, setInput] = useState<AudioNode | null>(null)
+
+      useEffect(() => {
+        const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+        oscillator.start()
+        setInput(oscillator)
+        return () => oscillator.stop()
+      }, [audioContext])
+
+      if (!input) return null
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{ reflections: { maxRays: 4096 } }}
+            >
+              <SteamAudioListener />
+              <SteamAudioEnvironment reflections={{ wet: 1 }}>
+                <SteamAudioSource
+                  input={input}
+                  reflections={{ wet: 0.7 }}
+                  reflectionSend={1}
+                  position={[0, 1, -2]}
+                />
+              </SteamAudioEnvironment>
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Reverb bus
+
+A [`ReverbBusNode`](/reference/audio-nodes/) renders listener-centric reverb. Enable listener reverb, create a reverb bus, and connect sources to it.
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({
+      audioContext,
+      reflections: { maxRays: 4096 },
+    })
+
+    world.listener.setReverb({
+      reverbScale: [1.8, 1.6, 1.3],
+    })
+
+    const reverb = world.createReverbBus({ wet: 1 })
+    reverb.connect(audioContext.destination)
+
+    const source = world.createSource()
+    const node = world.createNode(source)
+
+    const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+    oscillator.connect(node)
+    node.connect(audioContext.destination)
+    oscillator.start()
+
+    node.connectReverb(reverb, { gain: 0.4 })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    import { Suspense, useEffect, useState } from 'react'
+    import { Canvas } from '@react-three/fiber'
+    import {
+      SteamAudio,
+      SteamAudioEnvironment,
+      SteamAudioListener,
+      SteamAudioSource,
+    } from 'three-steam-audio/react'
+
+    export const App = () => {
+      const [audioContext] = useState(() => new AudioContext())
+      const [input, setInput] = useState<AudioNode | null>(null)
+
+      useEffect(() => {
+        const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
+        oscillator.start()
+        setInput(oscillator)
+        return () => oscillator.stop()
+      }, [audioContext])
+
+      if (!input) return null
+
+      return (
+        <Canvas>
+          <Suspense fallback={null}>
+            <SteamAudio
+              audioContext={audioContext}
+              options={{ reflections: { maxRays: 4096 } }}
+            >
+              <SteamAudioListener />
+              <SteamAudioEnvironment
+                reverb={{ reverbScale: [1.8, 1.6, 1.3], wet: 1 }}
+              >
+                <SteamAudioSource
+                  input={input}
+                  reverbSend={0.4}
+                  position={[0, 1, -2]}
+                />
+              </SteamAudioEnvironment>
+            </SteamAudio>
+          </Suspense>
+        </Canvas>
+      )
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## Performance
+
+Reflection simulation is expensive. Three Steam Audio runs reflection tracing in a dedicated `Worker` when `Worker` is available and reflections are enabled. If the worker cannot be created, the simulation falls back to the main thread.
+
+You can reduce CPU usage at runtime without recreating the world:
+
+<Tabs syncKey="api">
+  <TabItem label="three">
+    ```ts
+    world.setReflectionSettings({
+      rays: 1024,
+      bounces: 4,
+      duration: 1,
+      order: 0,
+    })
+    ```
+  </TabItem>
+  <TabItem label="react-three-fiber">
+    ```tsx
+    const { world } = useSteamAudio()
+
+    world.setReflectionSettings({
+      rays: 1024,
+      bounces: 4,
+      duration: 1,
+      order: 0,
+    })
+    ```
+  </TabItem>
+</Tabs>
+
+Values are clamped to the maximums declared when the world was created.
