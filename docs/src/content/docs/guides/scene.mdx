@@ -13,7 +13,7 @@ The acoustic scene contains the geometry that sound interacts with. Meshes in th
 Static geometry never moves. It is the cheapest type of acoustic geometry and should be used for walls, floors, terrain, and other fixed objects.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld, Materials } from 'three-steam-audio'
 
@@ -28,7 +28,7 @@ Static geometry never moves. It is the cheapest type of acoustic geometry and sh
     world.scene.commit()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -70,7 +70,7 @@ In the Three.js API, you must call `world.scene.commit()` after adding, removing
 Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale is baked when the mesh is added, so non-uniform or animated scaling is not supported.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld, Materials } from 'three-steam-audio'
 
@@ -96,7 +96,7 @@ Dynamic geometry can undergo rigid-body motion (translation and rotation). Scale
     animate()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { useRef } from 'react'
     import { Materials } from 'three-steam-audio'
@@ -141,7 +141,7 @@ Three Steam Audio ships with a small set of frozen presets. See [Materials](/ref
 You can assign different materials to different triangles in a mesh by passing an array of materials and material indices.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     world.scene.addStaticMesh({
       geometry: roomGeometry,
@@ -150,7 +150,7 @@ You can assign different materials to different triangles in a mesh by passing a
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <AcousticMesh material={[Materials.concrete, Materials.glass]}>
       <mesh geometry={roomGeometry} />
@@ -164,13 +164,13 @@ In Three.js, material indices are read from the geometry's `materialIndex` attri
 ## Removing geometry
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     handle.dispose()
     world.scene.commit()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     // <AcousticMesh> disposes its handles automatically when unmounted.
     ```

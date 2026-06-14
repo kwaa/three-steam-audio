@@ -13,7 +13,7 @@ A [`Source`](/reference/source/) represents a single emitting sound source in th
 Create a source from a world, then create an audio node for it.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -36,7 +36,7 @@ Create a source from a world, then create an audio node for it.
     oscillator.start()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -88,7 +88,7 @@ Sources are created with an upper bound set by `world.maxSources`. Creating more
 The simulator needs the source position and orientation every frame. Three Steam Audio uses the same right-handed, Y-up coordinate system as Three.js.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     source.setPosition(object.position)
     source.setOrientation(object.quaternion)
@@ -97,7 +97,7 @@ The simulator needs the source position and orientation every frame. Three Steam
     source.setTransform(object.position, object.quaternion)
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource
       input={input}
@@ -117,7 +117,7 @@ Direct simulation covers everything that happens along the straight line from so
 By default, a physics-based inverse-distance model is used. You can disable it, tune the minimum distance, or provide a custom curve:
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     // Inverse distance, custom minimum distance.
     source.setSettings({
@@ -138,7 +138,7 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
     source.setSettings({ distanceAttenuation: false })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource
       input={input}
@@ -160,7 +160,7 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
 Air absorption models how high frequencies attenuate faster than low frequencies over distance. Enable the default physics-based model or supply your own coefficients or curves.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     source.setSettings({
       directSimulation: {
@@ -170,7 +170,7 @@ Air absorption models how high frequencies attenuate faster than low frequencies
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource input={input} airAbsorption />
     ```
@@ -182,7 +182,7 @@ Air absorption models how high frequencies attenuate faster than low frequencies
 A source can emit sound with a directional pattern. Three Steam Audio supports a weighted dipole pattern controlled by `dipoleWeight` and `dipolePower`.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     source.setSettings({
       directivity: {
@@ -192,7 +192,7 @@ A source can emit sound with a directional pattern. Three Steam Audio supports a
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource
       input={input}
@@ -207,7 +207,7 @@ A source can emit sound with a directional pattern. Three Steam Audio supports a
 Occlusion traces rays from listener to source to determine how much of the source is visible. Transmission applies a material-dependent filter to the occluded portion of the sound.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     source.setSettings({
       directSimulation: {
@@ -221,7 +221,7 @@ Occlusion traces rays from listener to source to determine how much of the sourc
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource
       input={input}
@@ -241,12 +241,12 @@ Transmission requires occlusion to be enabled.
 Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` is fully spatialized; `0` is unspatialized.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     source.setSettings({ spatialBlend: 0.75 })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudioSource input={input} spatialBlend={0.75} />
     ```
@@ -258,7 +258,7 @@ Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` i
 You can read the latest direct simulation results from a source. This is useful for debugging, UI meters, or driving visual effects.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     const outputs = source.getDirectOutputs()
 
@@ -269,7 +269,7 @@ You can read the latest direct simulation results from a source. This is useful 
     console.log(outputs.directivity)
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     const { source } = useSteamAudioSource(meshRef)
 
@@ -288,13 +288,13 @@ Outputs are only updated after `world.step(delta)` runs and the simulator produc
 ## Disposing a source
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     node.dispose()   // disconnects the audio node
     source.dispose() // releases the source
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     // <SteamAudioSource> disposes its source and node automatically
     // when it unmounts.

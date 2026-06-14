@@ -18,7 +18,7 @@ Both effects use Steam Audio's **parametric reflection effect**. Convolution or 
 Reflections must be enabled when the world is created. Choose upper bounds for rays, duration, and Ambisonic order; these reserve native memory.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -33,7 +33,7 @@ Reflections must be enabled when the world is created. Choose upper bounds for r
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -71,7 +71,7 @@ Reflections must be enabled when the world is created. Choose upper bounds for r
 A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections. Create one from the world, connect it to the audio destination, then connect each source to it.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -105,7 +105,7 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
     // connection.disconnect()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -159,7 +159,7 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
 A [`ReverbBusNode`](/reference/audio-nodes/) renders listener-centric reverb. Enable listener reverb, create a reverb bus, and connect sources to it.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -186,7 +186,7 @@ A [`ReverbBusNode`](/reference/audio-nodes/) renders listener-centric reverb. En
     node.connectReverb(reverb, { gain: 0.4 })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -243,7 +243,7 @@ Reflection simulation is expensive. Three Steam Audio runs reflection tracing in
 You can reduce CPU usage at runtime without recreating the world:
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     world.setReflectionSettings({
       rays: 1024,
@@ -253,7 +253,7 @@ You can reduce CPU usage at runtime without recreating the world:
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     const { world } = useSteamAudio()
 

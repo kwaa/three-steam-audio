@@ -50,7 +50,7 @@ Install `three-steam-audio` from your package manager. It is ESM-only with peer 
 This example creates a [`World`](/reference/world/), adds a simple source, and connects the resulting [`SteamAudioNode`](/reference/audio-nodes/) to the audio output. Before any audio is heard, you must resume the `AudioContext` from a user gesture to satisfy browser autoplay policy.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -100,7 +100,7 @@ This example creates a [`World`](/reference/world/), adds a simple source, and c
     // world.dispose()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useEffect, useState } from 'react'
     import { Canvas } from '@react-three/fiber'

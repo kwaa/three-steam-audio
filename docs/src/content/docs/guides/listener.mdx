@@ -13,7 +13,7 @@ The listener represents the position and orientation of the player. Three Steam 
 The world exposes a single listener through [`world.listener`](/reference/world/). Update it each frame before calling `world.step(delta)`.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -31,7 +31,7 @@ The world exposes a single listener through [`world.listener`](/reference/world/
     animate()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -65,7 +65,7 @@ The world exposes a single listener through [`world.listener`](/reference/world/
 When reflections are enabled, you can ask the simulator to compute listener-centric reverb. This is useful for applying ambient reverberation to parts of your mix.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     world.listener.setReverb({
       enabled: true,
@@ -76,7 +76,7 @@ When reflections are enabled, you can ask the simulator to compute listener-cent
     world.listener.setReverb(false)
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'

@@ -13,7 +13,7 @@ A [`World`](/reference/world/) is the top-level object that owns the Steam Audio
 To create a world, pass an `AudioContext` to [`createWorld()`](/reference/world/#createworldoptions). The function is asynchronous because it loads the WebAssembly module, fetches the worklet script, and adds the processor to the audio context.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -23,7 +23,7 @@ To create a world, pass an `AudioContext` to [`createWorld()`](/reference/world/
     const world = await createWorld({ audioContext })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     import { Suspense, useState } from 'react'
     import { Canvas } from '@react-three/fiber'
@@ -65,7 +65,7 @@ The most important options control how much simulation work the world performs.
 If reflections are enabled, you must also specify their upper bounds at creation time:
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     const world = await createWorld({
       audioContext,
@@ -78,7 +78,7 @@ If reflections are enabled, you must also specify their upper bounds at creation
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     <SteamAudio
       audioContext={audioContext}
@@ -104,7 +104,7 @@ These values reserve simulation memory. At runtime you can reduce `rays`, `bounc
 Direct-path simulation and reflection simulation are driven by [`world.step(delta)`](/reference/world/#stepdelta). Call it every frame with the elapsed time in seconds. The world accumulates time internally and only runs the simulator when enough time has passed for the configured rate.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     import { createWorld } from 'three-steam-audio'
 
@@ -127,7 +127,7 @@ Direct-path simulation and reflection simulation are driven by [`world.step(delt
     requestAnimationFrame(animate)
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     // <SteamAudio> calls world.step(delta) automatically each frame.
     // You only need to call it yourself if you pass an owned world
@@ -145,7 +145,7 @@ Direct-path simulation and reflection simulation are driven by [`world.step(delt
 After creating a world with reflections enabled, you can reduce quality to save CPU or increase it temporarily for special moments:
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     world.setReflectionSettings({
       rays: 2048,
@@ -156,7 +156,7 @@ After creating a world with reflections enabled, you can reduce quality to save 
     })
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     // Call the same method through useSteamAudio().
     const { world } = useSteamAudio()
@@ -179,12 +179,12 @@ Each value is clamped to the maximum declared when the world was created.
 A world holds native and Web Audio resources. Dispose it when the scene unloads to release WASM memory, audio nodes, and worklets.
 
 <Tabs syncKey="api">
-  <TabItem label="three">
+  <TabItem label="Three.js">
     ```ts
     world.dispose()
     ```
   </TabItem>
-  <TabItem label="react-three-fiber">
+  <TabItem label="React Three Fiber">
     ```tsx
     // <SteamAudio> disposes its owned world automatically when unmounted.
     // If you passed an existing world, you are responsible for disposing it.

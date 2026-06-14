@@ -12,6 +12,7 @@ words:
   - directivity
   - direnv
   - drei
+  - emcc
   - emscripten
   - EMSDK
   - esbuild
