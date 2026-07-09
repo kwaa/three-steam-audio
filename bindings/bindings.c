@@ -286,6 +286,7 @@ EMSCRIPTEN_KEEPALIVE
 int sa_binaural_effect_apply(void* effect, void* hrtf,
                              float dir_x, float dir_y, float dir_z,
                              float spatial_blend,
+                             int interpolation,
                              const float* in_buffer, float* out_buffer,
                              int num_channels, int num_samples)
 {
@@ -305,12 +306,61 @@ int sa_binaural_effect_apply(void* effect, void* hrtf,
     params.direction.x = dir_x;
     params.direction.y = dir_y;
     params.direction.z = dir_z;
-    params.interpolation = spatial_blend >= 0.5f
+    params.interpolation = interpolation
         ? IPL_HRTFINTERPOLATION_BILINEAR
         : IPL_HRTFINTERPOLATION_NEAREST;
     params.spatialBlend = spatial_blend;
     params.hrtf = (IPLHRTF)hrtf;
     iplBinauralEffectApply((IPLBinauralEffect)effect, &params, &input, &output);
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_panning_effect_create(void* ctx, int sample_rate, int frame_size,
+                             void** out_effect)
+{
+    if (!ctx || !out_effect) return 1;
+    IPLAudioSettings audio;
+    IPLPanningEffectSettings settings;
+    memset(&audio, 0, sizeof(audio));
+    memset(&settings, 0, sizeof(settings));
+    audio.samplingRate = sample_rate;
+    audio.frameSize = frame_size;
+    settings.speakerLayout.type = IPL_SPEAKERLAYOUTTYPE_STEREO;
+    IPLerror error = iplPanningEffectCreate(
+        (IPLContext)ctx, &audio, &settings, (IPLPanningEffect*)out_effect);
+    return error == IPL_STATUS_SUCCESS ? 0 : (int)error;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_panning_effect_release(void* effect)
+{
+    if (effect) iplPanningEffectRelease((IPLPanningEffect*)&effect);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_panning_effect_apply(void* effect,
+                            float dir_x, float dir_y, float dir_z,
+                            const float* in_buffer, float* out_buffer,
+                            int num_channels, int num_samples)
+{
+    if (!effect || !in_buffer || !out_buffer || num_channels < 1 || num_channels > 2)
+        return 1;
+    const float* input_channels[2];
+    float* output_channels[2];
+    for (int channel = 0; channel < num_channels; ++channel)
+        input_channels[channel] = in_buffer + channel * num_samples;
+    for (int channel = 0; channel < 2; ++channel)
+        output_channels[channel] = out_buffer + channel * num_samples;
+
+    IPLAudioBuffer input = { num_channels, num_samples, (float**)input_channels };
+    IPLAudioBuffer output = { 2, num_samples, output_channels };
+    IPLPanningEffectParams params;
+    memset(&params, 0, sizeof(params));
+    params.direction.x = dir_x;
+    params.direction.y = dir_y;
+    params.direction.z = dir_z;
+    iplPanningEffectApply((IPLPanningEffect)effect, &params, &input, &output);
     return 0;
 }
 

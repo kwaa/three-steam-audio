@@ -79,7 +79,6 @@ export const SteamAudioEnvironment = ({
   useEffect(() => {
     world.listener.setReverb(reverb !== false
       ? {
-          enabled: reverb.enabled,
           reverbScale: reverb.reverbScale,
         }
       : false)

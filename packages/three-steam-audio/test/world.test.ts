@@ -124,8 +124,8 @@ describe('world', () => {
 
     const first = await createWorld({
       audioContext: audio.context,
+      direct: { updateRate: 60 },
       moduleFactory,
-      simulationRate: 60,
     })
     const second = await createWorld({
       audioContext: audio.context,
@@ -135,9 +135,9 @@ describe('world', () => {
     expect(audio.modules.length).toBe(1)
 
     const source = first.createSource({
-      directSimulation: {
+      direct: {
         airAbsorption: true,
-        occlusion: 'raycast',
+        occlusion: { type: 'raycast' },
         transmission: { type: 'frequency-dependent' },
       },
     })
@@ -178,19 +178,19 @@ describe('world', () => {
       moduleFactory: async () => native.module,
     })
     expect(() => world.createSource({
-      directSimulation: {
+      direct: {
         occlusion: false,
         transmission: {},
       },
     })).toThrow(/Transmission requires occlusion/)
     const source = world.createSource({
-      directSimulation: {
+      direct: {
         airAbsorption: true,
-        occlusion: 'raycast',
+        occlusion: { type: 'raycast' },
       },
     })
     const node = world.createNode(source)
-    source.setSettings({ hrtf: false })
+    source.setSettings({ spatialization: { mode: 'none' } })
     const latestInputs = native.calls
       .filter(([name]) => name === '_sa_source_set_inputs')
       .at(-1)
@@ -218,7 +218,7 @@ describe('world', () => {
     expect(() => world.createReverbBus()).toThrow(
       'Reflections are disabled for this World',
     )
-    expect(() => world.createSource({ reflections: true })).toThrow(
+    expect(() => world.createSource({ reflections: {} })).toThrow(
       'Source reflections require World reflections to be enabled',
     )
 
@@ -316,17 +316,17 @@ describe('world', () => {
     const world = await createWorld({
       audioContext: audio.context,
       moduleFactory: async () => native.module,
-      reflectionRate: 10,
       reflections: {
         maxDuration: 2,
         maxOrder: 1,
         maxRays: 4096,
+        updateRate: 10,
       },
     })
     const source = world.createSource({
       reflections: {
+        mixLevel: 0.7,
         reverbScale: [1, 0.8, 0.6],
-        wet: 0.7,
       },
     })
     const node = world.createNode(source) as unknown as SteamAudioNode & {
@@ -350,18 +350,18 @@ describe('world', () => {
     const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
       values: Float32Array
     }
-    expect([...control.values.slice(15, 18)]).toEqual([
+    expect([...control.values.slice(18, 21)]).toEqual([
       expect.closeTo(1.2),
       expect.closeTo(1.4),
       expect.closeTo(1.6),
     ])
-    expect(control.values[18]).toBeCloseTo(0.7)
-    expect([...control.values.slice(19, 22)]).toEqual([
+    expect(control.values[21]).toBeCloseTo(0.7)
+    expect([...control.values.slice(22, 25)]).toEqual([
       expect.closeTo(1.2),
       expect.closeTo(1.4),
       expect.closeTo(1.6),
     ])
-    expect(control.values[22]).toBe(1)
+    expect(control.values[25]).toBe(1)
 
     reflectionSend.setGain(0.8)
     reverbSend.disconnect()
@@ -386,7 +386,7 @@ describe('world', () => {
       ([name]) => name === '_sa_simulator_create',
     )
     expect(simulatorCreate?.[7]).toBe(0)
-    const source = world.createSource({ reflections: true })
+    const source = world.createSource({ reflections: {} })
     const sourceCreate = native.calls
       .filter(([name]) => name === '_sa_source_create')
       .at(-1)
@@ -435,7 +435,7 @@ describe('world', () => {
     const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
       values: Float32Array
     }
-    expect([...control.values.slice(15, 18)]).toEqual([2, 2.5, 3])
+    expect([...control.values.slice(18, 21)]).toEqual([2, 2.5, 3])
 
     source.dispose()
     world.dispose()
@@ -454,7 +454,7 @@ describe('world', () => {
       reflections: {},
     })
     const worker = FakeWorker.instances[0]
-    const source = world.createSource({ reflections: true })
+    const source = world.createSource({ reflections: {} })
     worker.emit({
       message: 'WASM initialization failed',
       type: 'error',

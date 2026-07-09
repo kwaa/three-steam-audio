@@ -91,7 +91,7 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
     const reflections = world.createReflectionBus({ wet: 1 })
     reflections.connect(audioContext.destination)
 
-    const source = world.createSource({ reflections: { wet: 0.7 } })
+    const source = world.createSource({ reflections: { mixLevel: 0.7 } })
     const node = world.createNode(source)
 
     const oscillator = new OscillatorNode(audioContext, { frequency: 440 })
@@ -143,8 +143,8 @@ A [`ReflectionBusNode`](/reference/audio-nodes/) renders per-source reflections.
               <SteamAudioEnvironment reflections={{ wet: 1 }}>
                 <SteamAudioSource
                   input={input}
-                  reflections={{ wet: 0.7 }}
-                  reflectionSend={1}
+                  reflections={{ mixLevel: 0.7 }}
+                  reflectionsSend={1}
                   position={[0, 1, -2]}
                 />
               </SteamAudioEnvironment>
@@ -258,7 +258,7 @@ You can reduce CPU usage at runtime without recreating the world:
       rays: 1024,
       bounces: 4,
       duration: 1,
-      order: 0,
+      ambisonicOrder: 0,
     })
     ```
   </TabItem>
@@ -273,7 +273,7 @@ You can reduce CPU usage at runtime without recreating the world:
         rays: 1024,
         bounces: 4,
         duration: 1,
-        order: 0,
+        ambisonicOrder: 0,
       })
 
       return null

@@ -57,9 +57,9 @@ The most important options control how much simulation work the world performs.
 | `audioContext` | required | The `AudioContext` that all audio nodes created from this world will use. |
 | `maxSources` | `32` | Maximum simultaneous sources. |
 | `frameSize` | `1024` | Number of samples processed per audio frame. |
-| `simulationRate` | `60` | How often direct simulation runs, in Hz. |
-| `reflectionRate` | `10` | How often reflection simulation runs, in Hz. |
-| `quality` | `'medium'` | Affects `maxOcclusionSamples` (`low`: 32, `medium`: 128, `high`: 256). |
+| `direct.updateRate` | `60` | How often direct simulation runs, in Hz. |
+| `reflections.updateRate` | `10` | How often reflection simulation runs, in Hz. |
+| `occlusionQuality` | `'medium'` | Affects `direct.maxOcclusionSamples` (`low`: 32, `medium`: 128, `high`: 256). |
 | `reflections` | `false` | Enable and configure real-time reflections. See [Reflections and Reverb](/guides/reflections/). |
 
 If reflections are enabled, you must also specify their upper bounds at creation time:
@@ -115,7 +115,7 @@ If reflections are enabled, you must also specify their upper bounds at creation
   </TabItem>
 </Tabs>
 
-These values reserve simulation memory. At runtime you can reduce `rays`, `bounces`, `duration`, and `order` via [`world.setReflectionSettings()`](/reference/world/#setreflectionsettingssettings), but you cannot exceed the initial maximums.
+These values reserve simulation memory. At runtime you can reduce `rays`, `bounces`, `duration`, and `ambisonicOrder` via [`world.setReflectionSettings()`](/reference/world/#setreflectionsettingssettings), but you cannot exceed the initial maximums.
 
 ## Stepping simulation
 
@@ -180,7 +180,7 @@ After creating a world with reflections enabled, you can reduce quality to save 
       rays: 2048,
       bounces: 8,
       duration: 1.5,
-      order: 1,
+      ambisonicOrder: 1,
       irradianceMinDistance: 1,
     })
     ```
@@ -196,7 +196,7 @@ After creating a world with reflections enabled, you can reduce quality to save 
         rays: 2048,
         bounces: 8,
         duration: 1.5,
-        order: 1,
+        ambisonicOrder: 1,
         irradianceMinDistance: 1,
       })
 

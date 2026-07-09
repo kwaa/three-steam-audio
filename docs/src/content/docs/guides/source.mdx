@@ -21,12 +21,12 @@ Create a source from a world, then create an audio node for it.
     const world = await createWorld({ audioContext })
 
     const source = world.createSource({
-      hrtf: true,
-      directSimulation: {
+      direct: {
         airAbsorption: true,
-        occlusion: 'raycast',
+        occlusion: { type: 'raycast' },
         transmission: { type: 'frequency-dependent' },
       },
+      spatialization: { mode: 'binaural' },
     })
 
     const node = world.createNode(source)
@@ -67,9 +67,9 @@ Create a source from a world, then create an audio node for it.
               <SteamAudioListener />
               <SteamAudioSource
                 input={input}
-                hrtf
                 airAbsorption
-                occlusion="raycast"
+                occlusion={{ type: 'raycast' }}
+                spatialization={{ mode: 'binaural' }}
                 transmission="frequency-dependent"
                 position={[0, 1, -2]}
               />
@@ -141,21 +141,25 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
 
     // Inverse distance, custom minimum distance.
     source.setSettings({
-      distanceAttenuation: { model: 'inverse', minDistance: 1 },
+      direct: {
+        distanceAttenuation: { model: 'inverse', minDistance: 1 },
+      },
     })
 
     // Custom curve.
     source.setSettings({
-      distanceAttenuation: {
-        model: 'curve',
-        minDistance: 1,
-        maxDistance: 18,
-        curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+      direct: {
+        distanceAttenuation: {
+          model: 'curve',
+          minDistance: 1,
+          maxDistance: 18,
+          curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+        },
       },
     })
 
     // Disable entirely.
-    source.setSettings({ distanceAttenuation: false })
+    source.setSettings({ direct: { distanceAttenuation: false } })
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
@@ -168,11 +172,13 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
     <SteamAudioSource
       input={input}
       settings={{
-        distanceAttenuation: {
-          model: 'curve',
-          minDistance: 1,
-          maxDistance: 18,
-          curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+        direct: {
+          distanceAttenuation: {
+            model: 'curve',
+            minDistance: 1,
+            maxDistance: 18,
+            curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+          },
         },
       }}
     />
@@ -193,9 +199,8 @@ Air absorption models how high frequencies attenuate faster than low frequencies
     const source = world.createSource()
 
     source.setSettings({
-      directSimulation: {
+      direct: {
         airAbsorption: true,
-        airAbsorptionModel: { model: 'default' },
       },
     })
     ```
@@ -225,9 +230,11 @@ A source can emit sound with a directional pattern. Three Steam Audio supports a
     const source = world.createSource()
 
     source.setSettings({
-      directivity: {
-        dipoleWeight: 0.5,
-        dipolePower: 2,
+      direct: {
+        directivity: {
+          dipoleWeight: 0.5,
+          dipolePower: 2,
+        },
       },
     })
     ```
@@ -260,12 +267,10 @@ Occlusion traces rays from listener to source to determine how much of the sourc
     const source = world.createSource()
 
     source.setSettings({
-      directSimulation: {
-        occlusion: 'raycast',
+      direct: {
+        occlusion: { type: 'raycast' },
         // Or volumetric occlusion:
-        // occlusion: 'volumetric',
-        // occlusionRadius: 1,
-        // occlusionSamples: 16,
+        // occlusion: { type: 'volumetric', radius: 1, samples: 16 },
         transmission: { type: 'frequency-dependent' },
       },
     })
@@ -280,7 +285,7 @@ Occlusion traces rays from listener to source to determine how much of the sourc
     // ---cut-end---
     <SteamAudioSource
       input={input}
-      occlusion="raycast"
+      occlusion={{ type: 'raycast' }}
       transmission="frequency-dependent"
     />
     ```
@@ -303,7 +308,7 @@ Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` i
     const world = await createWorld({ audioContext: new AudioContext() })
     const source = world.createSource()
 
-    source.setSettings({ spatialBlend: 0.75 })
+    source.setSettings({ spatialization: { blend: 0.75, mode: 'binaural' } })
     ```
   </TabItem>
   <TabItem label="React Three Fiber">
@@ -313,7 +318,7 @@ Blend between fully spatialized (HRTF) and unspatialized audio. A value of `1` i
     // ---cut-start---
     declare const input: AudioNode
     // ---cut-end---
-    <SteamAudioSource input={input} spatialBlend={0.75} />
+    <SteamAudioSource input={input} spatialization={{ blend: 0.75, mode: 'binaural' }} />
     ```
   </TabItem>
 </Tabs>

@@ -51,8 +51,8 @@ This example creates a [`World`](/reference/world/), adds a simple source, and c
     const world = await createWorld({ audioContext })
 
     const source = world.createSource({
-      hrtf: true,
-      directSimulation: { occlusion: 'raycast' },
+      direct: { occlusion: { type: 'raycast' } },
+      spatialization: { mode: 'binaural' },
     })
 
     const node = world.createNode(source)
@@ -125,8 +125,8 @@ This example creates a [`World`](/reference/world/), adds a simple source, and c
               <SteamAudioListener />
               <SteamAudioSource
                 input={input}
-                hrtf
-                occlusion="raycast"
+                occlusion={{ type: 'raycast' }}
+                spatialization={{ mode: 'binaural' }}
                 position={[0, 1, -2]}
               />
             </SteamAudio>

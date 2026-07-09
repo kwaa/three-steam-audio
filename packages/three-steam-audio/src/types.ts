@@ -25,9 +25,14 @@ export type AirAbsorptionSettings
       ]
       maxDistance: number
       model: 'curve'
-      samples?: number
+      sampleCount?: number
     }
     | { model?: 'default' }
+
+export interface DirectivitySettings {
+  dipolePower?: number
+  dipoleWeight?: number
+}
 
 export interface DirectOutputs {
   airAbsorption: [number, number, number]
@@ -45,15 +50,21 @@ export interface DirectOverrides {
   transmission?: ThreeBand
 }
 
-export interface DirectSimulationSettings {
-  airAbsorption?: boolean
-  airAbsorptionModel?: AirAbsorptionSettings
-  occlusion?: 'raycast' | 'volumetric' | false
-  occlusionRadius?: number
-  occlusionSamples?: number
+export interface DirectSettings {
+  airAbsorption?: AirAbsorptionSettings | boolean
+  directivity?: DirectivitySettings | false
+  distanceAttenuation?: DistanceAttenuationSettings | false
+  mixLevel?: number
+  occlusion?: false | OcclusionSettings
   transmission?: false | {
+    maxSurfaces?: number
     type?: 'frequency-dependent' | 'frequency-independent'
   }
+}
+
+export interface DirectWorldSettings {
+  maxOcclusionSamples?: number
+  updateRate?: number
 }
 
 export type DistanceAttenuationSettings
@@ -62,7 +73,7 @@ export type DistanceAttenuationSettings
     maxDistance: number
     minDistance: number
     model: 'curve'
-    samples?: number
+    sampleCount?: number
   }
   | { minDistance?: number, model: 'inverse' }
   | { model?: 'default' }
@@ -75,7 +86,11 @@ export interface DynamicMeshInput extends StaticMeshInput {
   matrixWorld: Matrix4
 }
 
-export interface HRTFSettings { type?: 'default' }
+export interface HRTFSettings {
+  normalization?: 'none' | 'rms'
+  type?: 'default'
+  volumeGainDb?: number
+}
 
 export interface Listener {
   setOrientation: (orientation: QuaternionLike) => void
@@ -84,7 +99,13 @@ export interface Listener {
   setTransform: (position: Vector3Like, orientation: QuaternionLike) => void
 }
 
-export type QualityPreset = 'high' | 'low' | 'medium'
+export type OcclusionQualityPreset = 'high' | 'low' | 'medium'
+
+export interface OcclusionSettings {
+  radius?: number
+  samples?: number
+  type?: 'raycast' | 'volumetric'
+}
 
 export interface QuaternionLike {
   w: number
@@ -103,9 +124,16 @@ export interface ReflectionConnection {
 }
 
 export interface ReflectionSettings {
-  enabled?: boolean
+  mixLevel?: number
   reverbScale?: ThreeBand
-  wet?: number
+}
+
+export interface ReflectionSimulationSettings {
+  ambisonicOrder?: number
+  bounces?: number
+  duration?: number
+  irradianceMinDistance?: number
+  rays?: number
 }
 
 export interface ReverbBusSettings {
@@ -115,26 +143,7 @@ export interface ReverbBusSettings {
 export type ReverbConnection = ReflectionConnection
 
 export interface ReverbSettings {
-  enabled?: boolean
   reverbScale?: ThreeBand
-}
-
-export interface RuntimeSimulationSettings {
-  bounces?: number
-  duration?: number
-  irradianceMinDistance?: number
-  order?: number
-  rays?: number
-}
-
-export interface SimulationSettings {
-  diffuseSamples?: number
-  maxDuration?: number
-  maxOcclusionSamples?: number
-  maxOrder?: number
-  maxRays?: number
-  pathingVisibilitySamples?: number
-  rayBatchSize?: number
 }
 
 export interface Source {
@@ -149,16 +158,24 @@ export interface Source {
 }
 
 export interface SourceSettings {
-  directivity?: {
-    dipolePower?: number
-    dipoleWeight?: number
-  }
-  directSimulation?: boolean | DirectSimulationSettings
-  distanceAttenuation?: DistanceAttenuationSettings | false
-  hrtf?: boolean
-  reflections?: boolean | ReflectionSettings
-  spatialBlend?: number
+  direct?: DirectSettings | false
+  reflections?: false | ReflectionSettings
+  spatialization?: SpatializationSettings
 }
+
+export type SpatializationSettings
+  = | {
+    blend?: number
+    interpolation?: 'bilinear' | 'nearest'
+    mode?: 'binaural'
+  }
+  | {
+    blend?: number
+    mode: 'panning'
+  }
+  | {
+    mode: 'none'
+  }
 
 export interface StaticMeshInput {
   geometry: BufferGeometry
@@ -194,18 +211,19 @@ export interface Vector3Like {
 
 export interface WorldOptions {
   audioContext: AudioContext
+  direct?: DirectWorldSettings
   frameSize?: number
   hrtf?: HRTFSettings
   maxSources?: number
   moduleFactory?: SteamAudioModuleFactory
-  quality?: QualityPreset
-  reflectionRate?: number
+  occlusionQuality?: OcclusionQualityPreset
   reflections?: false | {
     diffuseSamples?: number
+    initial?: ReflectionSimulationSettings
     maxDuration?: number
     maxOrder?: number
     maxRays?: number
+    maxSources?: number
+    updateRate?: number
   }
-  simulation?: SimulationSettings
-  simulationRate?: number
 }

@@ -20,9 +20,12 @@ await audioContext.resume()
 
 const world = await createWorld({ audioContext })
 const source = world.createSource({
-  directSimulation: {
+  direct: {
     airAbsorption: true,
-    occlusion: 'raycast',
+    occlusion: { type: 'raycast' },
+  },
+  spatialization: {
+    mode: 'binaural',
   },
 })
 const node = world.createNode(source)
@@ -59,7 +62,7 @@ reflections.connect(audioContext.destination)
 reverb.connect(audioContext.destination)
 
 const source = world.createSource({
-  reflections: { wet: 0.7 },
+  reflections: { mixLevel: 0.7 },
 })
 const node = world.createNode(source)
 node.connectReflections(reflections, { gain: 1 })
@@ -101,8 +104,8 @@ import {
       <SteamAudioSource
         input={input}
         position={[0, 1, -2]}
-        reflections={{ wet: 0.7 }}
-        reflectionSend={1}
+        reflections={{ mixLevel: 0.7 }}
+        reflectionsSend={1}
         reverbSend={0.4}
       />
     </SteamAudioEnvironment>

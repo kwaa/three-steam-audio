@@ -134,16 +134,17 @@ describe('steamAudioProcessor', () => {
     })
     await waitUntil(() => processor.ready)
 
-    const control = new Float32Array(23)
+    const control = new Float32Array(26)
     control.set([1, 1, 1, 1, 1, 1, 1, 1, 1])
     control.set([1, 0, 0], 9)
     control[12] = 1
     control[13] = 1
-    control[14] = 1
-    control.set([2, 2, 2], 15)
-    control[18] = 1
-    control.set([2, 2, 2], 19)
-    control[22] = 1
+    control[15] = 1
+    control[17] = 1
+    control.set([2, 2, 2], 18)
+    control[21] = 1
+    control.set([2, 2, 2], 22)
+    control[25] = 1
     processor.port.onmessage?.({
       data: { type: 'control', values: control },
     } as MessageEvent)
@@ -181,7 +182,7 @@ describe('steamAudioProcessor', () => {
 
   it('applies controls delivered through isolated-page shared memory', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
-    const controlBuffer = new SharedArrayBuffer(4 + 23 * 4)
+    const controlBuffer = new SharedArrayBuffer(4 + 26 * 4)
     const Processor = getRegisteredProcessor<new (options: { processorOptions: {
       controlBuffer: SharedArrayBuffer
       frameSize: number
@@ -196,12 +197,13 @@ describe('steamAudioProcessor', () => {
     })
     await waitUntil(() => processor.ready)
 
-    const control = new Float32Array(23)
+    const control = new Float32Array(26)
     control.set([0, 1, 1, 1, 1, 1, 1, 1, 1])
     control[11] = -1
     control[12] = 1
     control[13] = 1
-    control[14] = 1
+    control[15] = 1
+    control[17] = 1
     writeSharedControl(controlBuffer, control)
 
     let outputEnergy = 0

@@ -40,7 +40,6 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   disposed: boolean
   failed: boolean
   frameSize: number
-  hrtfMix: number
   inputActive: Uint8Array
   inputCount: number
   inputLeft: Float32Array
@@ -55,6 +54,7 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   outputRead: number
   outputRight: Float32Array
   outputWrite: number
+  panningEffect?: number
   ready: boolean
   reflectionEffect?: number
   reflectionLeft: Float32Array
@@ -68,6 +68,7 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   reverbTimesPointer?: number
   runtime?: SteamAudioProcessorRuntime
   sharedControl?: Float32Array
+  spatializationMix: number
   transmissionPointer?: number
 
   constructor(options: SteamAudioProcessorOptions)

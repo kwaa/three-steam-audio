@@ -48,24 +48,26 @@ export const SoundSource = ({
     <SteamAudioSource
       airAbsorption
       destination={spatialDestination}
-      hrtf
       input={input}
-      occlusion="raycast"
+      occlusion={{ type: 'raycast' }}
       onReady={({ source }) => {
         sourceRef.current = source
       }}
       position={[4, 1.5, -2]}
       ref={ref}
-      reflections
-      reflectionSend={0.8}
+      reflections={{}}
+      reflectionsSend={0.8}
       reverbSend={1.2}
       settings={{
-        distanceAttenuation: {
-          curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
-          maxDistance: 18,
-          minDistance: 1,
-          model: 'curve',
+        direct: {
+          distanceAttenuation: {
+            curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
+            maxDistance: 18,
+            minDistance: 1,
+            model: 'curve',
+          },
         },
+        spatialization: { mode: 'binaural' },
       }}
       transmission="frequency-dependent"
     >
