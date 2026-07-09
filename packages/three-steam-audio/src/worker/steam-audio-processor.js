@@ -191,6 +191,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     return !this.disposed
   }
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   processBlock() {
     const { module } = this.runtime
     const heap = module.HEAPF32
@@ -234,20 +235,22 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
         + heap[directOffset + this.frameSize + index]
       )
     }
-    module._sa_binaural_effect_apply(
-      this.binauralEffect,
-      this.runtime.hrtf,
-      this.control[9],
-      this.control[10],
-      this.control[11],
-      this.control[12],
-      this.control[16],
-      this.monoPointer,
-      this.outputPointer,
-      1,
-      this.frameSize,
-    )
-    if (spatializationMode === 2) {
+    if (spatializationMode === 1) {
+      module._sa_binaural_effect_apply(
+        this.binauralEffect,
+        this.runtime.hrtf,
+        this.control[9],
+        this.control[10],
+        this.control[11],
+        this.control[12],
+        this.control[16],
+        this.monoPointer,
+        this.outputPointer,
+        1,
+        this.frameSize,
+      )
+    }
+    else if (spatializationMode === 2) {
       module._sa_panning_effect_apply(
         this.panningEffect,
         this.control[9],
@@ -307,6 +310,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     const reflectionOffset = this.reflectionPointer >>> 2
     const reverbOffset = this.reverbPointer >>> 2
     for (let index = 0; index < this.frameSize; index++) {
+      if (spatializationMode === 0)
+        this.spatializationMix = 0
       if (this.spatializationMix < targetMix)
         this.spatializationMix = Math.min(targetMix, this.spatializationMix + mixStep)
       else if (this.spatializationMix > targetMix)

@@ -124,7 +124,7 @@ const transmissionSetting = (
 }
 /* eslint-enable sonarjs/function-return-type */
 
-const mergeSourceSettings = (
+export const mergeSourceSettings = (
   settings: SourceSettings | undefined,
   props: Pick<
     SteamAudioSourceProps,
@@ -140,11 +140,10 @@ const mergeSourceSettings = (
   const settingsDirect = directObject(settings?.direct)
   const propDirect = directObject(props.direct)
   const hasDirectProps = props.airAbsorption !== undefined
-    || props.direct !== undefined
     || props.directivity !== undefined
     || props.occlusion !== undefined
     || props.transmission !== undefined
-  const direct = settings?.direct === false && !hasDirectProps
+  const direct = props.direct === false || (settings?.direct === false && !hasDirectProps)
     ? false
     : {
         ...settingsDirect,

@@ -344,16 +344,15 @@ int sa_panning_effect_apply(void* effect,
                             const float* in_buffer, float* out_buffer,
                             int num_channels, int num_samples)
 {
-    if (!effect || !in_buffer || !out_buffer || num_channels < 1 || num_channels > 2)
+    if (!effect || !in_buffer || !out_buffer || num_channels != 1)
         return 1;
-    const float* input_channels[2];
+    const float* input_channels[1];
     float* output_channels[2];
-    for (int channel = 0; channel < num_channels; ++channel)
-        input_channels[channel] = in_buffer + channel * num_samples;
+    input_channels[0] = in_buffer;
     for (int channel = 0; channel < 2; ++channel)
         output_channels[channel] = out_buffer + channel * num_samples;
 
-    IPLAudioBuffer input = { num_channels, num_samples, (float**)input_channels };
+    IPLAudioBuffer input = { 1, num_samples, (float**)input_channels };
     IPLAudioBuffer output = { 2, num_samples, output_channels };
     IPLPanningEffectParams params;
     memset(&params, 0, sizeof(params));

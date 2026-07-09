@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import createSteamAudioModule from '../dist/bindings/phonon_bindings.js'
+
 import { getRegisteredProcessor } from './helpers/audio-worklet.ts'
 
 import '../dist/steam-audio-processor.js'
@@ -82,6 +84,51 @@ describe('steamAudioProcessor', () => {
 
     processor.dispose()
     expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
+  })
+
+  it('keeps the panning binding constrained to mono input', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const module = await createSteamAudioModule({
+      wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+    })
+    const out = module._malloc(4)
+    const input = module._malloc(16 * 2 * 4)
+    const output = module._malloc(16 * 2 * 4)
+    try {
+      expect(module._sa_context_create(out)).toBe(0)
+      const context = module.HEAPU32[out >>> 2]
+      expect(module._sa_panning_effect_create(context, 48_000, 16, out)).toBe(0)
+      const effect = module.HEAPU32[out >>> 2]
+
+      expect(module._sa_panning_effect_apply(
+        effect,
+        1,
+        0,
+        0,
+        input,
+        output,
+        2,
+        16,
+      )).toBe(1)
+      expect(module._sa_panning_effect_apply(
+        effect,
+        1,
+        0,
+        0,
+        input,
+        output,
+        1,
+        16,
+      )).toBe(0)
+
+      module._sa_panning_effect_release(effect)
+      module._sa_context_release(context)
+    }
+    finally {
+      module._free(output)
+      module._free(input)
+      module._free(out)
+    }
   })
 
   it('outputs silence while the DSP runtime is still initializing', () => {
