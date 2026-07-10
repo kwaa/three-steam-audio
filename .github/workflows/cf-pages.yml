@@ -48,10 +48,10 @@ jobs:
 
       # Deploy
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4"
+          wranglerVersion: '4'
           command: pages deploy docs/dist --project-name=three-steam-audio
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
