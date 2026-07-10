@@ -8,6 +8,17 @@ The `Listener` represents the position and orientation of the player. It is acce
 
 ## Methods
 
+### `setCamera(camera)`
+
+```ts
+listener.setCamera(camera: Camera | null): void
+```
+
+Sets the Three.js render camera used by perspective correction. Call it after the
+camera's projection matrix or world matrix changes. Passing `null` disables the
+camera-dependent correction while leaving simulation unchanged. XR array cameras
+are ignored unless `world` was created with `perspectiveCorrection.applyInXR`.
+
 ### `setPosition(position)`
 
 ```ts

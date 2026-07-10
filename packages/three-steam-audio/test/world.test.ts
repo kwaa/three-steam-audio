@@ -1,7 +1,7 @@
 import type { SteamAudioNode } from '../dist/index.js'
 import type { FakePort } from './helpers/audio-context.ts'
 
-import { BufferGeometry, Float32BufferAttribute, Matrix4, Quaternion, Vector3 } from 'three'
+import { ArrayCamera, BufferGeometry, Float32BufferAttribute, Matrix4, PerspectiveCamera, Quaternion, Vector3 } from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createWorld, Materials } from '../dist/index.js'
@@ -336,6 +336,116 @@ describe('world', () => {
       expect.closeTo(0),
       expect.closeTo(1),
     ])
+
+    source.dispose()
+    world.dispose()
+  })
+
+  it('uses Steam Audio perspective correction only for opted-in sources', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      perspectiveCorrection: { enabled: true, factor: 1 },
+    })
+    const camera = new PerspectiveCamera(90, 2, 0.1, 100)
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+    world.listener.setCamera(camera)
+    const corrected = world.createSource({ perspectiveCorrection: true })
+    const uncorrected = world.createSource()
+    const correctedNode = world.createNode(corrected)
+    const uncorrectedNode = world.createNode(uncorrected)
+
+    corrected.setPosition({ x: 2, y: 0, z: -10 })
+    uncorrected.setPosition({ x: 2, y: 0, z: -10 })
+
+    const correctedControl = ((correctedNode.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    const uncorrectedControl = ((uncorrectedNode.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect(correctedControl.values[9]).toBeLessThan(uncorrectedControl.values[9])
+    expect(correctedControl.values[11]).toBeLessThan(0)
+    expect(uncorrectedControl.values[11]).toBeLessThan(0)
+
+    corrected.setSettings({ perspectiveCorrection: false })
+    const disabledControl = ((correctedNode.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...disabledControl.values.slice(9, 12)]).toEqual([
+      expect.closeTo(uncorrectedControl.values[9]),
+      expect.closeTo(uncorrectedControl.values[10]),
+      expect.closeTo(uncorrectedControl.values[11]),
+    ])
+
+    corrected.dispose()
+    uncorrected.dispose()
+    world.dispose()
+  })
+
+  it('keeps a source in front after rotating the camera and listener', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      perspectiveCorrection: { enabled: true },
+    })
+    const camera = new PerspectiveCamera(90, 1, 0.1, 100)
+    camera.rotation.y = Math.PI / 2
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+    world.listener.setCamera(camera)
+    world.listener.setTransform(camera.position, camera.quaternion)
+    const source = world.createSource({ perspectiveCorrection: true })
+    const node = world.createNode(source)
+    const sourcePosition = new Vector3(0, 0, -10).applyQuaternion(camera.quaternion)
+
+    source.setPosition(sourcePosition)
+
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...control.values.slice(9, 12)]).toEqual([
+      expect.closeTo(0),
+      expect.closeTo(0),
+      expect.closeTo(-1),
+    ])
+
+    source.dispose()
+    world.dispose()
+  })
+
+  it('disables perspective correction for XR cameras unless explicitly enabled', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      perspectiveCorrection: { enabled: true, factor: 1 },
+    })
+    const eye = new PerspectiveCamera(90, 2, 0.1, 100)
+    eye.updateProjectionMatrix()
+    eye.updateMatrixWorld()
+    const xrCamera = new ArrayCamera([eye])
+    world.listener.setCamera(xrCamera)
+    const source = world.createSource({ perspectiveCorrection: true })
+    const node = world.createNode(source)
+
+    source.setPosition({ x: 2, y: 0, z: -10 })
+    const disabled = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect(disabled.values[9]).toBeCloseTo(0.196116)
+
+    world.setPerspectiveCorrection({ applyInXR: true, enabled: true, factor: 1 })
+    const enabled = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect(enabled.values[9]).toBeLessThan(disabled.values[9])
 
     source.dispose()
     world.dispose()

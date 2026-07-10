@@ -53,6 +53,9 @@ Synchronizes the R3F camera (or a custom object) to `world.listener`.
 `object`
 : Optional ref to an `Object3D` to use as the listener transform. Defaults to the R3F camera.
 
+`perspectiveCorrection`
+: `boolean | { factor?: number, applyInXR?: boolean }` — enables or configures the World's desktop perspective correction. Sources still opt in through `<SteamAudioSource perspectiveCorrection />` or `SourceSettings`.
+
 ## `<SteamAudioEnvironment>`
 
 Creates optional reflection and reverb buses and wires them to a destination.

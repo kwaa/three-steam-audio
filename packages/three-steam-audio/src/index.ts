@@ -19,6 +19,7 @@ export type {
   Listener,
   OcclusionQualityPreset,
   OcclusionSettings,
+  PerspectiveCorrectionSettings,
   QuaternionLike,
   ReflectionBusSettings,
   ReflectionConnection,

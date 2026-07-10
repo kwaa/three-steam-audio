@@ -16,18 +16,19 @@ The world exposes a single listener through [`world.listener`](/reference/world/
   <TabItem label="Three.js">
     ```ts twoslash {9-10,12}
     import { createWorld } from 'three-steam-audio'
-    import { Vector3, Quaternion } from 'three'
+    import { Camera } from 'three'
 
     const world = await createWorld({ audioContext: new AudioContext() })
 
     // ---cut-start---
-    declare const camera: { position: Vector3; quaternion: Quaternion }
+    declare const camera: Camera
     // ---cut-end---
     const animate = () => {
       requestAnimationFrame(animate)
 
       world.listener.setPosition(camera.position)
       world.listener.setOrientation(camera.quaternion)
+      world.listener.setCamera(camera)
 
       world.step(1 / 60)
     }
@@ -51,7 +52,7 @@ The world exposes a single listener through [`world.listener`](/reference/world/
         <Canvas>
           <Suspense fallback={null}>
             <SteamAudio audioContext={audioContext}>
-              <SteamAudioListener />
+              <SteamAudioListener perspectiveCorrection />
               {/* scene contents */}
             </SteamAudio>
           </Suspense>
@@ -60,7 +61,7 @@ The world exposes a single listener through [`world.listener`](/reference/world/
     }
     ```
 
-    `<SteamAudioListener>` automatically synchronizes the R3F camera (or a custom object provided via the `object` prop) to `world.listener` each frame. Only one listener may be mounted per `<SteamAudio>` context.
+    `<SteamAudioListener>` automatically synchronizes the R3F camera (or a custom object provided via the `object` prop) to `world.listener` each frame. When the object is a camera, it also provides its current projection and view matrices for perspective correction. Only one listener may be mounted per `<SteamAudio>` context.
   </TabItem>
 </Tabs>
 
