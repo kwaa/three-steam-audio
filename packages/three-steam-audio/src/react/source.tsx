@@ -143,7 +143,8 @@ export const mergeSourceSettings = (
     || props.directivity !== undefined
     || props.occlusion !== undefined
     || props.transmission !== undefined
-  const direct = props.direct === false || (settings?.direct === false && !hasDirectProps)
+  const direct = props.direct === false
+    || (settings?.direct === false && props.direct === undefined && !hasDirectProps)
     ? false
     : {
         ...settingsDirect,
