@@ -112,16 +112,25 @@ Declarative source component.
 : `AudioNode | null` — where to connect the node's main output.
 
 `airAbsorption`
-: `boolean`.
+: `DirectSettings['airAbsorption']` — `true` enables the default model; an object configures the exponential or curve model.
 
 `direct`
 : `SourceSettings['direct']`. Use this for full direct-path settings, including `mixLevel` and `transmission.maxSurfaces`.
+
+`distanceAttenuation`
+: `DirectSettings['distanceAttenuation']` — shortcut for the direct-path distance model.
+
+`directMixLevel`
+: `number` in `[0, 1]` — shortcut for `direct.mixLevel`.
+
+`directOverrides`
+: `DirectOverrides | null` — replaces selected direct simulation outputs. `null` clears all overrides.
 
 `occlusion`
 : `SourceSettings['direct']['occlusion']`.
 
 `transmission`
-: `'frequency-dependent' | 'frequency-independent' | boolean`.
+: `'frequency-dependent' | 'frequency-independent' | boolean | DirectSettings['transmission']`. Use the object form to configure `maxSurfaces`.
 
 `directivity`
 : `{ dipoleWeight?: number, dipolePower?: number }`.

@@ -208,6 +208,15 @@ describe('world', () => {
     source.setDirectOverrides({ transmission: [0.2, 0.3, 0.4] })
     const control = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
     expect(control.values[13] & 0b10000).toBe(0b10000)
+    expect(control.values[14]).toBe(1)
+    expect(() => source.setDirectOverrides({
+      airAbsorption: [0.2, 0.3] as unknown as [number, number, number],
+    })).toThrow(/exactly three bands/)
+    // eslint-disable-next-line no-sparse-arrays -- Covers untyped JavaScript callers.
+    const sparseTransmission = [0.2, , 0.4]
+    expect(() => source.setDirectOverrides({
+      transmission: sparseTransmission as [number, number, number],
+    })).toThrow(/overrides\.transmission\[1\].*\[0, 1\]/)
     expect(() => world.createSource()).toThrow(/maxSources/)
     source.dispose()
     world.dispose()

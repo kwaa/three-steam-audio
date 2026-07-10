@@ -31,6 +31,25 @@ describe('steamAudioSource settings merge', () => {
     })
   })
 
+  it('merges direct-simulation shortcut props without dropping nested settings', () => {
+    expect(mergeSourceSettings({
+      direct: {
+        airAbsorption: true,
+        mixLevel: 0.2,
+        transmission: { maxSurfaces: 2 },
+      },
+    }, {
+      directMixLevel: 0.75,
+      distanceAttenuation: { minDistance: 3, model: 'inverse' },
+      transmission: { maxSurfaces: 4, type: 'frequency-dependent' },
+    }).direct).toEqual({
+      airAbsorption: true,
+      distanceAttenuation: { minDistance: 3, model: 'inverse' },
+      mixLevel: 0.75,
+      transmission: { maxSurfaces: 4, type: 'frequency-dependent' },
+    })
+  })
+
   it('merges partial spatialization props with settings', () => {
     expect(mergeSourceSettings({
       spatialization: { blend: 0.5, mode: 'binaural' },

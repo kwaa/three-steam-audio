@@ -171,6 +171,13 @@ const integer = (name: string, value: number, minimum = 1): number => {
   return value
 }
 
+const unitThreeBand = (name: string, values: readonly number[]): void => {
+  if (values.length !== 3)
+    throw new RangeError(`${name} must contain exactly three bands`)
+  for (let band = 0; band < 3; band++)
+    clampUnit(`${name}[${band}]`, values[band])
+}
+
 const normalizeQuaternion = (value: QuaternionLike): Quaternion => {
   orientationScratch.set(value.x, value.y, value.z, value.w)
   if (orientationScratch.lengthSq() < 1e-12)
@@ -779,8 +786,9 @@ class SourceImpl implements Source {
         spatializationBlend: spatializationBlend(this.#settings.spatialization),
         spatializationMode: spatializationModeCode(this.#settings.spatialization),
         transmission: overrides?.transmission ?? result.transmission,
-        transmissionType: direct.transmission !== false
-          && direct.transmission.type === 'frequency-dependent'
+        transmissionType: overrides?.transmission !== undefined
+          || (direct.transmission !== false
+            && direct.transmission.type === 'frequency-dependent')
           ? 1
           : 0,
       })
@@ -837,8 +845,10 @@ class SourceImpl implements Source {
         clampUnit('overrides.directivity', overrides.directivity)
       if (overrides.occlusion !== undefined)
         clampUnit('overrides.occlusion', overrides.occlusion)
-      overrides.airAbsorption?.forEach((value, band) => clampUnit(`overrides.airAbsorption[${band}]`, value))
-      overrides.transmission?.forEach((value, band) => clampUnit(`overrides.transmission[${band}]`, value))
+      if (overrides.airAbsorption)
+        unitThreeBand('overrides.airAbsorption', overrides.airAbsorption)
+      if (overrides.transmission)
+        unitThreeBand('overrides.transmission', overrides.transmission)
     }
     this.#overrides = overrides
     this.publishControl()

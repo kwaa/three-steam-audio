@@ -171,15 +171,11 @@ By default, a physics-based inverse-distance model is used. You can disable it, 
     // ---cut-end---
     <SteamAudioSource
       input={input}
-      settings={{
-        direct: {
-          distanceAttenuation: {
-            model: 'curve',
-            minDistance: 1,
-            maxDistance: 18,
-            curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
-          },
-        },
+      distanceAttenuation={{
+        model: 'curve',
+        minDistance: 1,
+        maxDistance: 18,
+        curve: distance => Math.max(0, 1 - distance / 18) ** 1.5,
       }}
     />
     ```
@@ -212,7 +208,13 @@ Air absorption models how high frequencies attenuate faster than low frequencies
     // ---cut-start---
     declare const input: AudioNode
     // ---cut-end---
-    <SteamAudioSource input={input} airAbsorption />
+    <SteamAudioSource
+      input={input}
+      airAbsorption={{
+        model: 'exponential',
+        coefficients: [0.02, 0.08, 0.2],
+      }}
+    />
     ```
   </TabItem>
 </Tabs>
@@ -286,7 +288,7 @@ Occlusion traces rays from listener to source to determine how much of the sourc
     <SteamAudioSource
       input={input}
       occlusion={{ type: 'raycast' }}
-      transmission="frequency-dependent"
+      transmission={{ maxSurfaces: 4, type: 'frequency-dependent' }}
     />
     ```
   </TabItem>
@@ -294,7 +296,48 @@ Occlusion traces rays from listener to source to determine how much of the sourc
 
 :::note
 Transmission requires occlusion to be enabled.
+`maxSurfaces` defaults to `1` and is limited to `8`; raising it increases simulation work.
 :::
+
+### Direct mix level and overrides
+
+`direct.mixLevel` controls the rendered direct path without changing simulation
+outputs. It is in `[0, 1]` and is smoothed in the audio worklet, so it can be
+changed while audio is playing. Use an external `GainNode` for gains above unity.
+
+`setDirectOverrides` is useful when your application supplies simulation values
+from another system. Each supplied field replaces only that direct-effect output;
+pass `null` to return to Steam Audio simulation. A three-band transmission
+override is rendered as frequency-dependent transmission.
+
+<Tabs syncKey="api">
+  <TabItem label="Three.js">
+    ```ts twoslash
+    import { createWorld } from 'three-steam-audio'
+
+    const world = await createWorld({ audioContext: new AudioContext() })
+    const source = world.createSource()
+
+    source.setSettings({ direct: { mixLevel: 0.7 } })
+    source.setDirectOverrides({ occlusion: 0.35 })
+    source.setDirectOverrides(null)
+    ```
+  </TabItem>
+  <TabItem label="React Three Fiber">
+    ```tsx twoslash
+    import { SteamAudioSource } from 'three-steam-audio/react'
+
+    // ---cut-start---
+    declare const input: AudioNode
+    // ---cut-end---
+    <SteamAudioSource
+      input={input}
+      directMixLevel={0.7}
+      directOverrides={{ occlusion: 0.35 }}
+    />
+    ```
+  </TabItem>
+</Tabs>
 
 ### Spatial blend
 
