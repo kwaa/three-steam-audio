@@ -1,0 +1,57 @@
+name: cf-pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      # Nix
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+      - uses: DeterminateSystems/flake-checker-action@main
+
+      # Node.js
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version: 24
+      - run: pnpm install --frozen-lockfile
+
+      # Steam Audio dist
+      - uses: actions/cache@v5
+        with:
+          path: |
+            steam-audio/core/bin
+            steam-audio/core/build/wasm-release
+            steam-audio/core/deps
+            steam-audio/core/deps-build
+          key: steam-audio-wasm-${{ runner.os }}-${{ hashFiles('flake.lock', '.gitmodules', 'Justfile', 'patches/steam-audio/**', 'steam-audio/core/CMakeLists.txt', 'steam-audio/core/build/dependencies.json') }}
+
+      # Build
+      - run: nix develop --command just get_dependencies build-steam-audio build-bindings
+      - run: pnpm build
+
+      # Deploy
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: "4"
+          command: pages deploy docs/dist --project-name=three-steam-audio
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
