@@ -75,9 +75,20 @@ export type SteamAudioProps
     world: World
   })
 
+interface ListenerCameraBinding {
+  camera: Camera | null
+  world: World
+}
+
 interface ProviderProps extends SteamAudioCommonProps {
   world: World
 }
+
+export const hasChangedListenerCameraBinding = (
+  previous: ListenerCameraBinding | null,
+  camera: Camera | null,
+  world: World,
+): boolean => previous?.camera !== camera || previous?.world !== world
 
 const SteamAudioProvider = ({
   children,
@@ -90,7 +101,7 @@ const SteamAudioProvider = ({
     source: new Set(),
   })
   const listenerCountRef = useRef(0)
-  const previousCameraRef = useRef<Camera | null>(null)
+  const previousCameraRef = useRef<ListenerCameraBinding | null>(null)
   const warnedRef = useRef(false)
   const listenerObjectRef = useRef<RefObject<null | Object3D> | undefined>(undefined)
   const listenerPosition = useMemo(() => new Vector3(), [])
@@ -122,8 +133,9 @@ const SteamAudioProvider = ({
     target.getWorldPosition(listenerPosition)
     target.getWorldQuaternion(listenerOrientation)
     const camera = target instanceof Camera ? target : null
-    if (previousCameraRef.current !== camera) {
-      previousCameraRef.current = camera
+    const previous = previousCameraRef.current
+    if (hasChangedListenerCameraBinding(previous, camera, world)) {
+      previousCameraRef.current = { camera, world }
       world.listener.setCamera(camera)
     }
     world.listener.setTransform(listenerPosition, listenerOrientation)
