@@ -88,72 +88,112 @@ export interface SteamAudioSourceApi {
 }
 
 export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref'> {
-  airAbsorption?: boolean
+  airAbsorption?: SourceSettings['direct'] extends false ? never : boolean
   destination?: AudioNode | null
-  directivity?: SourceSettings['directivity']
-  hrtf?: boolean
+  direct?: SourceSettings['direct']
+  directivity?: SourceSettings['direct'] extends false ? never : NonNullable<Exclude<SourceSettings['direct'], false>>['directivity']
   input?: AudioNode | null
-  occlusion?: 'raycast' | 'volumetric' | false
+  occlusion?: NonNullable<Exclude<SourceSettings['direct'], false>>['occlusion']
   onReady?: (api: SteamAudioSourceApi) => void
   ref?: Ref<Group>
   reflections?: SourceSettings['reflections']
-  reflectionSend?: number
+  reflectionsSend?: number
   reverbSend?: number
   settings?: SourceSettings
-  spatialBlend?: number
+  spatialization?: SourceSettings['spatialization']
   transmission?: 'frequency-dependent' | 'frequency-independent' | boolean
+}
+
+type SourceDirectSettings = Exclude<NonNullable<SourceSettings['direct']>, false>
+
+const directObject = (direct: SourceSettings['direct'] | undefined): SourceDirectSettings =>
+  typeof direct === 'object' ? direct : {}
+
+/* eslint-disable sonarjs/function-return-type -- API uses false to disable transmission. */
+const transmissionSetting = (
+  transmission: SteamAudioSourceProps['transmission'],
+  fallback: SourceDirectSettings['transmission'],
+): SourceDirectSettings['transmission'] => {
+  if (transmission === undefined)
+    return fallback
+  if (transmission === false)
+    return false
+  return {
+    type: transmission === true ? 'frequency-independent' : transmission,
+  }
+}
+/* eslint-enable sonarjs/function-return-type */
+
+export const mergeSourceSettings = (
+  settings: SourceSettings | undefined,
+  props: Pick<
+    SteamAudioSourceProps,
+    | 'airAbsorption'
+    | 'direct'
+    | 'directivity'
+    | 'occlusion'
+    | 'reflections'
+    | 'spatialization'
+    | 'transmission'
+  >,
+): SourceSettings => {
+  const settingsDirect = directObject(settings?.direct)
+  const propDirect = directObject(props.direct)
+  const hasDirectProps = props.airAbsorption !== undefined
+    || props.directivity !== undefined
+    || props.occlusion !== undefined
+    || props.transmission !== undefined
+  const direct = props.direct === false
+    || (settings?.direct === false && props.direct === undefined && !hasDirectProps)
+    ? false
+    : {
+        ...settingsDirect,
+        ...propDirect,
+        airAbsorption: props.airAbsorption ?? propDirect.airAbsorption ?? settingsDirect.airAbsorption,
+        directivity: props.directivity ?? propDirect.directivity ?? settingsDirect.directivity,
+        occlusion: props.occlusion ?? propDirect.occlusion ?? settingsDirect.occlusion,
+        transmission: transmissionSetting(
+          props.transmission,
+          propDirect.transmission ?? settingsDirect.transmission,
+        ),
+      }
+  return {
+    ...settings,
+    direct,
+    reflections: props.reflections ?? settings?.reflections,
+    spatialization: props.spatialization ?? settings?.spatialization,
+  }
 }
 
 export const SteamAudioSource = ({
   airAbsorption,
   destination,
+  direct,
   directivity,
-  hrtf,
   input,
   occlusion,
   onReady,
   ref,
   reflections,
-  reflectionSend,
+  reflectionsSend,
   reverbSend,
   settings,
-  spatialBlend,
+  spatialization,
   transmission,
   ...groupProps
 }: SteamAudioSourceProps) => {
   const groupRef = useRef<Group>(null)
   const { world } = useInternalContext('SteamAudioSource')
   const environment = useSteamAudioEnvironment()
-  const mergedSettings = useMemo<SourceSettings>(() => {
-    const direct = typeof settings?.directSimulation === 'object'
-      ? settings.directSimulation
-      : {}
-    const hasDirectProps = airAbsorption !== undefined
-      || occlusion !== undefined
-      || transmission !== undefined
-    const directSimulation = settings?.directSimulation === false && !hasDirectProps
-      ? false
-      : {
-          ...direct,
-          airAbsorption: airAbsorption ?? direct.airAbsorption,
-          occlusion: occlusion ?? direct.occlusion,
-          transmission: transmission === undefined
-            ? direct.transmission
-            : transmission === false
-              ? false
-              : {
-                  type: transmission === true ? 'frequency-independent' : transmission,
-                },
-        }
-    return {
-      ...settings,
-      directivity: directivity ?? settings?.directivity,
-      directSimulation,
-      hrtf: hrtf ?? settings?.hrtf,
-      reflections: reflections ?? settings?.reflections,
-      spatialBlend: spatialBlend ?? settings?.spatialBlend,
-    }
-  }, [airAbsorption, directivity, hrtf, occlusion, reflections, settings, spatialBlend, transmission])
+  const mergedSettings = useMemo<SourceSettings>(() => mergeSourceSettings(settings, {
+    airAbsorption,
+    direct,
+    directivity,
+    occlusion,
+    reflections,
+    spatialization,
+    transmission,
+  }), [airAbsorption, direct, directivity, occlusion, reflections, settings, spatialization, transmission])
   const api = useSteamAudioSource(groupRef, mergedSettings)
 
   const setGroupRef = useCallback((group: Group | null) => {
@@ -170,14 +210,14 @@ export const SteamAudioSource = ({
   }, [api.node, destination, input, world.audioContext.destination])
 
   useEffect(() => {
-    if (!environment.reflectionBus || reflectionSend === undefined)
+    if (!environment.reflectionBus || reflectionsSend === undefined)
       return
     const connection = api.node.connectReflections(
       environment.reflectionBus,
-      { gain: reflectionSend },
+      { gain: reflectionsSend },
     )
     return () => connection.disconnect()
-  }, [api.node, environment.reflectionBus, reflectionSend])
+  }, [api.node, environment.reflectionBus, reflectionsSend])
 
   useEffect(() => {
     if (!environment.reverbBus || reverbSend === undefined)

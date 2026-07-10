@@ -1,7 +1,7 @@
 /* global AudioWorkletProcessor, registerProcessor, sampleRate */
 import createSteamAudioModule from './bindings/phonon_bindings.js'
 
-const CONTROL_VALUE_COUNT = 23
+const CONTROL_VALUE_COUNT = 26
 const runtimePromises = new Map()
 
 const allocate = (module, byteLength) => {
@@ -69,8 +69,9 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.control[8] = 1
     this.control[11] = -1
     this.control[12] = 1
-    this.control[14] = 1
-    this.hrtfMix = 1
+    this.control[15] = 1
+    this.control[17] = 1
+    this.spatializationMix = 1
 
     const ringSize = this.frameSize * 2
     this.inputLeft = new Float32Array(ringSize)
@@ -118,6 +119,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       return
     const { module } = this.runtime
     module._sa_binaural_effect_release(this.binauralEffect)
+    module._sa_panning_effect_release(this.panningEffect)
     module._sa_direct_effect_release(this.directEffect)
     module._sa_reflection_effect_release(this.reflectionEffect)
     module._sa_reflection_effect_release(this.reverbEffect)
@@ -143,6 +145,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       module._sa_direct_effect_create(context, sampleRate, this.frameSize, 2, out))
     this.binauralEffect = createHandle(module, out =>
       module._sa_binaural_effect_create(context, sampleRate, this.frameSize, hrtf, out))
+    this.panningEffect = createHandle(module, out =>
+      module._sa_panning_effect_create(context, sampleRate, this.frameSize, out))
     this.reflectionEffect = createHandle(module, out =>
       module._sa_reflection_effect_create(context, sampleRate, this.frameSize, 1, out))
     this.reverbEffect = createHandle(module, out =>
@@ -187,6 +191,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     return !this.disposed
   }
 
+  // eslint-disable-next-line sonarjs/cognitive-complexity
   processBlock() {
     const { module } = this.runtime
     const heap = module.HEAPF32
@@ -206,8 +211,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       heap[airOffset + band] = this.control[1 + band]
       heap[transmissionOffset + band] = this.control[6 + band]
     }
-    const hrtf = this.control[14] > 0
-    const transmissionType = Math.abs(this.control[14]) - 1
+    const transmissionType = this.control[14]
+    const spatializationMode = this.control[15]
     module._sa_direct_effect_apply(
       this.directEffect,
       this.control[13],
@@ -230,18 +235,33 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
         + heap[directOffset + this.frameSize + index]
       )
     }
-    module._sa_binaural_effect_apply(
-      this.binauralEffect,
-      this.runtime.hrtf,
-      this.control[9],
-      this.control[10],
-      this.control[11],
-      this.control[12],
-      this.monoPointer,
-      this.outputPointer,
-      1,
-      this.frameSize,
-    )
+    if (spatializationMode === 1) {
+      module._sa_binaural_effect_apply(
+        this.binauralEffect,
+        this.runtime.hrtf,
+        this.control[9],
+        this.control[10],
+        this.control[11],
+        this.control[12],
+        this.control[16],
+        this.monoPointer,
+        this.outputPointer,
+        1,
+        this.frameSize,
+      )
+    }
+    else if (spatializationMode === 2) {
+      module._sa_panning_effect_apply(
+        this.panningEffect,
+        this.control[9],
+        this.control[10],
+        this.control[11],
+        this.monoPointer,
+        this.outputPointer,
+        1,
+        this.frameSize,
+      )
+    }
 
     const reflectionTimesOffset = this.reflectionTimesPointer >>> 2
     const reverbTimesOffset = this.reverbTimesPointer >>> 2
@@ -252,8 +272,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       )
     }
     for (let band = 0; band < 3; band++) {
-      heap[reflectionTimesOffset + band] = this.control[15 + band]
-      heap[reverbTimesOffset + band] = this.control[19 + band]
+      heap[reflectionTimesOffset + band] = this.control[18 + band]
+      heap[reverbTimesOffset + band] = this.control[22 + band]
     }
     if (inputActive) {
       module._sa_reflection_effect_apply(
@@ -284,29 +304,35 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       )
     }
 
-    const targetMix = hrtf ? 1 : 0
+    const targetMix = spatializationMode === 0 ? 0 : this.control[12]
     const mixStep = 1 / (sampleRate * 0.02)
     const outputOffset = this.outputPointer >>> 2
     const reflectionOffset = this.reflectionPointer >>> 2
     const reverbOffset = this.reverbPointer >>> 2
     for (let index = 0; index < this.frameSize; index++) {
-      if (this.hrtfMix < targetMix)
-        this.hrtfMix = Math.min(targetMix, this.hrtfMix + mixStep)
-      else if (this.hrtfMix > targetMix)
-        this.hrtfMix = Math.max(targetMix, this.hrtfMix - mixStep)
-      const dryMix = 1 - this.hrtfMix
-      heap[outputOffset + index] = heap[outputOffset + index] * this.hrtfMix
+      if (spatializationMode === 0)
+        this.spatializationMix = 0
+      if (this.spatializationMix < targetMix)
+        this.spatializationMix = Math.min(targetMix, this.spatializationMix + mixStep)
+      else if (this.spatializationMix > targetMix)
+        this.spatializationMix = Math.max(targetMix, this.spatializationMix - mixStep)
+      const dryMix = 1 - this.spatializationMix
+      heap[outputOffset + index] = (
+        heap[outputOffset + index] * this.spatializationMix
         + heap[directOffset + index] * dryMix
+      ) * this.control[17]
       heap[outputOffset + this.frameSize + index]
-        = heap[outputOffset + this.frameSize + index] * this.hrtfMix
+        = (
+          heap[outputOffset + this.frameSize + index] * this.spatializationMix
           + heap[directOffset + this.frameSize + index] * dryMix
+        ) * this.control[17]
     }
 
     for (let index = 0; index < this.frameSize; index++) {
       this.outputLeft[this.outputWrite] = heap[outputOffset + index]
       this.outputRight[this.outputWrite] = heap[outputOffset + this.frameSize + index]
-      const reflectionSample = heap[reflectionOffset + index] * this.control[18]
-      const reverbSample = heap[reverbOffset + index] * this.control[22]
+      const reflectionSample = heap[reflectionOffset + index] * this.control[21]
+      const reverbSample = heap[reverbOffset + index] * this.control[25]
       this.reflectionLeft[this.outputWrite] = reflectionSample
       this.reflectionRight[this.outputWrite] = reflectionSample
       this.reverbLeft[this.outputWrite] = reverbSample

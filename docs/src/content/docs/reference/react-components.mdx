@@ -111,14 +111,14 @@ Declarative source component.
 `destination`
 : `AudioNode | null` — where to connect the node's main output.
 
-`hrtf`
-: `boolean`.
-
 `airAbsorption`
 : `boolean`.
 
+`direct`
+: `SourceSettings['direct']`.
+
 `occlusion`
-: `'raycast' | 'volumetric' | false`.
+: `SourceSettings['direct']['occlusion']`.
 
 `transmission`
 : `'frequency-dependent' | 'frequency-independent' | boolean`.
@@ -126,13 +126,13 @@ Declarative source component.
 `directivity`
 : `{ dipoleWeight?: number, dipolePower?: number }`.
 
-`spatialBlend`
-: `number`.
+`spatialization`
+: `SourceSettings['spatialization']`.
 
 `reflections`
 : `SourceSettings['reflections']`.
 
-`reflectionSend`
+`reflectionsSend`
 : `number` — gain to the environment reflection bus.
 
 `reverbSend`

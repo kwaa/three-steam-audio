@@ -25,24 +25,23 @@ Creates and initializes a world. This function loads the Steam Audio WASM module
 `frameSize`
 : Number of samples processed per audio frame. Default: `1024`.
 
-`simulationRate`
-: How often direct simulation runs, in Hz. Default: `60`.
+`direct`
+: Direct sound world settings:
+  - `updateRate` — how often direct simulation runs, in Hz. Default: `60`
+  - `maxOcclusionSamples` — maximum volumetric occlusion samples for any source. Default depends on `occlusionQuality`
 
-`reflectionRate`
-: How often reflection simulation runs, in Hz. Default: `10`.
-
-`quality`
-: Quality preset that affects `maxOcclusionSamples`. One of `'low'`, `'medium'`, `'high'`. Default: `'medium'`.
+`occlusionQuality`
+: Preset that affects `direct.maxOcclusionSamples`. One of `'low'`, `'medium'`, `'high'`. Default: `'medium'`.
 
 `reflections`
 : `false` to disable reflections, or an object with upper bounds:
   - `maxRays` — default `4096`
-  - `maxDuration` — default `2`
+  - `maxDuration` — default `1`
   - `maxOrder` — default `1`
   - `diffuseSamples` — default `32`
-
-`simulation`
-: Advanced simulation settings, including `maxRays`, `maxDuration`, `maxOrder`, `diffuseSamples`, `maxOcclusionSamples`, `rayBatchSize`, and `pathingVisibilitySamples`.
+  - `maxSources` — maximum real-time reflection sources
+  - `updateRate` — how often reflection simulation runs, in Hz. Default: `10`
+  - `initial` — initial runtime reflection settings
 
 `moduleFactory`
 : Optional custom factory used to instantiate the Emscripten module.
@@ -95,7 +94,7 @@ Creates a bus for rendering listener reverb. Requires reflections to be enabled 
 ### `setReflectionSettings(settings)`
 
 ```ts
-world.setReflectionSettings(settings: RuntimeSimulationSettings): void
+world.setReflectionSettings(settings: ReflectionSimulationSettings): void
 ```
 
 Tunes reflection simulation at runtime. All values are clamped to the maximums declared in `WorldOptions`.
@@ -109,7 +108,7 @@ Tunes reflection simulation at runtime. All values are clamped to the maximums d
 `settings.duration`
 : Simulation duration in seconds. Must not exceed `maxDuration`.
 
-`settings.order`
+`settings.ambisonicOrder`
 : Ambisonic order. Must not exceed `maxOrder`.
 
 `settings.irradianceMinDistance`

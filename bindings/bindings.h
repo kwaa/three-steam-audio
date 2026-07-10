@@ -50,8 +50,17 @@ void sa_binaural_effect_release(void* effect);
 int sa_binaural_effect_apply(void* effect, void* hrtf,
                              float dir_x, float dir_y, float dir_z,
                              float spatial_blend,
+                             int interpolation,
                              const float* in_buffer, float* out_buffer,
                              int num_channels, int num_samples);
+
+int sa_panning_effect_create(void* ctx, int sample_rate, int frame_size,
+                             void** out_effect);
+void sa_panning_effect_release(void* effect);
+int sa_panning_effect_apply(void* effect,
+                            float dir_x, float dir_y, float dir_z,
+                            const float* in_buffer, float* out_buffer,
+                            int num_channels, int num_samples);
 
 int sa_direct_effect_create(void* ctx, int sample_rate, int frame_size,
                             int num_channels, void** out_effect);

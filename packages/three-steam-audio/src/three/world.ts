@@ -6,19 +6,21 @@ import type {
   AirAbsorptionSettings,
   DirectOutputs,
   DirectOverrides,
-  DirectSimulationSettings,
+  DirectSettings,
   DistanceAttenuationSettings,
   DynamicAcousticMeshHandle,
   DynamicMeshInput,
   Listener,
+  OcclusionSettings,
   QuaternionLike,
   ReflectionBusSettings,
   ReflectionSettings,
+  ReflectionSimulationSettings,
   ReverbBusSettings,
   ReverbSettings,
-  RuntimeSimulationSettings,
   Source,
   SourceSettings,
+  SpatializationSettings,
   StaticMeshInput,
   Vector3Like,
   WorldOptions,
@@ -90,20 +92,48 @@ interface NativeMesh {
 }
 
 interface NormalizedSourceSettings {
-  directivity: {
-    dipolePower: number
-    dipoleWeight: number
+  direct: Required<Pick<DirectSettings, 'mixLevel'>> & {
+    airAbsorption: AirAbsorptionSettings | boolean
+    directivity: false | {
+      dipolePower: number
+      dipoleWeight: number
+    }
+    distanceAttenuation: DistanceAttenuationSettings | false
+    occlusion: false | Required<OcclusionSettings>
+    transmission: false | {
+      maxSurfaces: number
+      type: 'frequency-dependent' | 'frequency-independent'
+    }
   }
-  directSimulation: DirectSimulationSettings
-  distanceAttenuation: DistanceAttenuationSettings | false
-  hrtf: boolean
-  reflections: Required<Pick<ReflectionSettings, 'enabled' | 'reverbScale' | 'wet'>>
-  spatialBlend: number
+  reflections: Required<Pick<ReflectionSettings, 'mixLevel' | 'reverbScale'>> & {
+    enabled: boolean
+  }
+  spatialization: NormalizedSpatializationSettings
 }
+
+type NormalizedSpatializationSettings
+  = | {
+    blend: number
+    interpolation: 'bilinear' | 'nearest'
+    mode: 'binaural'
+  }
+  | {
+    blend: number
+    mode: 'panning'
+  }
+  | {
+    mode: 'none'
+  }
 
 const clampUnit = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value < 0 || value > 1)
     throw new RangeError(`${name} must be a finite number in [0, 1]`)
+  return value
+}
+
+const gain = (name: string, value: number): number => {
+  if (!Number.isFinite(value) || value < 0)
+    throw new RangeError(`${name} must be a finite number >= 0`)
   return value
 }
 
@@ -136,20 +166,119 @@ const directionsFromQuaternion = (value: QuaternionLike): [Vector3, Vector3] => 
 const normalizeReflectionSettings = (
   settings: SourceSettings['reflections'],
 ): NormalizedSourceSettings['reflections'] => {
-  const input = settings === true
-    ? {}
-    : settings === false || settings === undefined
-      ? undefined
-      : settings
+  const input = settings === false || settings === undefined
+    ? undefined
+    : settings
   const reverbScale = input?.reverbScale ?? [1, 1, 1]
   reverbScale.forEach((value, band) => {
     if (!Number.isFinite(value) || value < 0)
       throw new RangeError(`reflections.reverbScale[${band}] must be a finite number >= 0`)
   })
   return {
-    enabled: input?.enabled ?? (settings === true || input !== undefined),
+    enabled: input !== undefined,
+    mixLevel: gain('reflections.mixLevel', input?.mixLevel ?? 1),
     reverbScale,
-    wet: clampUnit('reflections.wet', input?.wet ?? 1),
+  }
+}
+
+/* eslint-disable sonarjs/function-return-type -- API uses false to disable direct-path subfeatures. */
+const normalizeDirectivity = (
+  directivity: DirectSettings['directivity'],
+): NormalizedSourceSettings['direct']['directivity'] => {
+  if (directivity === false)
+    return false
+  const input = directivity ?? { dipolePower: 0, dipoleWeight: 0 }
+  const normalized = {
+    dipolePower: input.dipolePower ?? 0,
+    dipoleWeight: clampUnit('direct.directivity.dipoleWeight', input.dipoleWeight ?? 0),
+  }
+  if (!Number.isFinite(normalized.dipolePower) || normalized.dipolePower < 0)
+    throw new RangeError('direct.directivity.dipolePower must be a finite number >= 0')
+  return normalized
+}
+
+const normalizeOcclusion = (
+  occlusion: DirectSettings['occlusion'],
+  maximumOcclusionSamples: number,
+): NormalizedSourceSettings['direct']['occlusion'] => {
+  if (occlusion === false || occlusion === undefined)
+    return false
+  const normalized = {
+    radius: occlusion.radius ?? 1,
+    samples: occlusion.samples ?? 16,
+    type: occlusion.type ?? 'raycast',
+  }
+  if (normalized.type !== 'volumetric')
+    return normalized
+  if (!Number.isFinite(normalized.radius) || normalized.radius < 0)
+    throw new RangeError('direct.occlusion.radius must be a finite number >= 0')
+  normalized.samples = integer('direct.occlusion.samples', normalized.samples)
+  if (normalized.samples > maximumOcclusionSamples)
+    throw new RangeError(`direct.occlusion.samples cannot exceed World direct.maxOcclusionSamples (${maximumOcclusionSamples})`)
+  return normalized
+}
+
+const normalizeTransmission = (
+  transmission: DirectSettings['transmission'],
+): NormalizedSourceSettings['direct']['transmission'] => {
+  if (transmission === false || transmission === undefined)
+    return false
+  return {
+    maxSurfaces: integer('direct.transmission.maxSurfaces', transmission.maxSurfaces ?? 1),
+    type: transmission.type ?? 'frequency-independent',
+  }
+}
+/* eslint-enable sonarjs/function-return-type */
+
+const normalizeDirectSettings = (
+  settings: SourceSettings['direct'],
+  maximumOcclusionSamples: number,
+): NormalizedSourceSettings['direct'] => {
+  if (settings === false) {
+    return {
+      airAbsorption: false,
+      directivity: false,
+      distanceAttenuation: false,
+      mixLevel: 0,
+      occlusion: false,
+      transmission: false,
+    }
+  }
+
+  const input = settings ?? {}
+  const occlusion = normalizeOcclusion(input.occlusion, maximumOcclusionSamples)
+  const transmission = normalizeTransmission(input.transmission)
+  if (transmission !== false && occlusion === false)
+    throw new Error('Transmission requires occlusion to be enabled')
+
+  return {
+    airAbsorption: input.airAbsorption ?? false,
+    directivity: normalizeDirectivity(input.directivity),
+    distanceAttenuation: input.distanceAttenuation === undefined
+      ? { model: 'default' }
+      : input.distanceAttenuation,
+    mixLevel: gain('direct.mixLevel', input.mixLevel ?? 1),
+    occlusion,
+    transmission,
+  }
+}
+
+const normalizeSpatializationSettings = (
+  settings: SpatializationSettings | undefined,
+): NormalizedSpatializationSettings => {
+  const input = settings ?? { mode: 'binaural' }
+  if (input.mode === 'none')
+    return { mode: 'none' }
+  if (input.mode === 'panning') {
+    return {
+      blend: clampUnit('spatialization.blend', input.blend ?? 1),
+      mode: 'panning',
+    }
+  }
+  return {
+    blend: clampUnit('spatialization.blend', input.blend ?? 1),
+    interpolation: input.interpolation ?? 'nearest',
+    mode: 'binaural',
   }
 }
 
@@ -157,54 +286,11 @@ const normalizeSettings = (
   settings: SourceSettings = {},
   maximumOcclusionSamples = DEFAULT_MAX_OCCLUSION_SAMPLES,
 ): NormalizedSourceSettings => {
-  const simulation = settings.directSimulation === false
-    ? {}
-    : settings.directSimulation === true || settings.directSimulation === undefined
-      ? {}
-      : settings.directSimulation
-  const directivity = settings.directivity ?? {}
-  const normalized: NormalizedSourceSettings = {
-    directivity: {
-      dipolePower: directivity.dipolePower ?? 0,
-      dipoleWeight: clampUnit('directivity.dipoleWeight', directivity.dipoleWeight ?? 0),
-    },
-    directSimulation: settings.directSimulation === false
-      ? {
-          airAbsorption: false,
-          occlusion: false,
-          transmission: false,
-        }
-      : {
-          airAbsorption: simulation.airAbsorption ?? false,
-          airAbsorptionModel: simulation.airAbsorptionModel,
-          occlusion: simulation.occlusion ?? false,
-          occlusionRadius: simulation.occlusionRadius ?? 1,
-          occlusionSamples: simulation.occlusionSamples ?? 16,
-          transmission: simulation.transmission ?? false,
-        },
-    distanceAttenuation: settings.distanceAttenuation === undefined
-      ? { model: 'default' }
-      : settings.distanceAttenuation,
-    hrtf: settings.hrtf ?? true,
+  return {
+    direct: normalizeDirectSettings(settings.direct, maximumOcclusionSamples),
     reflections: normalizeReflectionSettings(settings.reflections),
-    spatialBlend: clampUnit('spatialBlend', settings.spatialBlend ?? 1),
+    spatialization: normalizeSpatializationSettings(settings.spatialization),
   }
-
-  if (!Number.isFinite(normalized.directivity.dipolePower) || normalized.directivity.dipolePower < 0)
-    throw new RangeError('directivity.dipolePower must be a finite number >= 0')
-  const transmissionEnabled = normalized.directSimulation.transmission !== false
-    && normalized.directSimulation.transmission !== undefined
-  const occlusionEnabled = normalized.directSimulation.occlusion !== false
-    && normalized.directSimulation.occlusion !== undefined
-  if (transmissionEnabled && !occlusionEnabled)
-    throw new Error('Transmission requires occlusion to be enabled')
-  if (normalized.directSimulation.occlusion === 'volumetric') {
-    positive('directSimulation.occlusionRadius', normalized.directSimulation.occlusionRadius!)
-    const samples = integer('directSimulation.occlusionSamples', normalized.directSimulation.occlusionSamples!)
-    if (samples > maximumOcclusionSamples)
-      throw new RangeError(`directSimulation.occlusionSamples cannot exceed World maxOcclusionSamples (${maximumOcclusionSamples})`)
-  }
-  return normalized
 }
 
 const sampleCurve = (
@@ -215,7 +301,7 @@ const sampleCurve = (
   minimum = 0,
 ): Float32Array => {
   positive(`${name}.maxDistance`, maximum)
-  integer(`${name}.samples`, count, 2)
+  integer(`${name}.sampleCount`, count, 2)
   if (maximum <= minimum)
     throw new RangeError(`${name}.maxDistance must be greater than minDistance`)
   const values = new Float32Array(count)
@@ -239,7 +325,7 @@ const distanceModel = (settings: DistanceAttenuationSettings | false) => {
       curve: sampleCurve(
         settings.curve,
         settings.maxDistance,
-        settings.samples ?? 256,
+        settings.sampleCount ?? 256,
         'distanceAttenuation',
         settings.minDistance,
       ),
@@ -251,8 +337,8 @@ const distanceModel = (settings: DistanceAttenuationSettings | false) => {
   return { curve: undefined, maximum: 0, minimum: 1, model: 0 }
 }
 
-const airModel = (settings: AirAbsorptionSettings | undefined) => {
-  if (!settings || !settings.model || settings.model === 'default')
+const airModel = (settings: AirAbsorptionSettings | boolean | undefined) => {
+  if (settings === undefined || settings === false || settings === true || !settings.model || settings.model === 'default')
     return { coefficients: undefined, curves: undefined, maximum: 0, model: 0, samples: 0 }
   if (settings.model === 'exponential') {
     settings.coefficients.forEach((value, band) => clampUnit(`airAbsorption.coefficients[${band}]`, value))
@@ -266,7 +352,7 @@ const airModel = (settings: AirAbsorptionSettings | undefined) => {
   }
   if (!('curves' in settings))
     throw new Error(`Unsupported air absorption model: ${String(settings.model)}`)
-  const count = settings.samples ?? 256
+  const count = settings.sampleCount ?? 256
   const curves = new Float32Array(count * 3)
   settings.curves.forEach((curve, band) => {
     curves.set(sampleCurve(curve, settings.maxDistance, count, `airAbsorption.curves[${band}]`), band * count)
@@ -284,13 +370,13 @@ const directEffectFlags = (
   settings: NormalizedSourceSettings,
   overrides: DirectOverrides | null,
 ): number => {
-  const direct = settings.directSimulation
+  const direct = settings.direct
   let flags = 0
-  if (settings.distanceAttenuation !== false || overrides?.distanceAttenuation !== undefined)
+  if (direct.distanceAttenuation !== false || overrides?.distanceAttenuation !== undefined)
     flags |= DIRECT_DISTANCE
-  if (direct.airAbsorption === true || overrides?.airAbsorption !== undefined)
+  if (direct.airAbsorption !== false || overrides?.airAbsorption !== undefined)
     flags |= DIRECT_AIR
-  if (settings.directivity.dipoleWeight > 0 || overrides?.directivity !== undefined)
+  if ((direct.directivity !== false && direct.directivity.dipoleWeight > 0) || overrides?.directivity !== undefined)
     flags |= DIRECT_DIRECTIVITY
   if (direct.occlusion !== false || overrides?.occlusion !== undefined)
     flags |= DIRECT_OCCLUSION
@@ -298,6 +384,20 @@ const directEffectFlags = (
     flags |= DIRECT_TRANSMISSION
   return flags
 }
+
+const spatializationModeCode = (settings: NormalizedSpatializationSettings): number => {
+  if (settings.mode === 'none')
+    return 0
+  if (settings.mode === 'binaural')
+    return 1
+  return 2
+}
+
+const spatializationBlend = (settings: NormalizedSpatializationSettings): number =>
+  settings.mode === 'none' ? 0 : settings.blend
+
+const hrtfInterpolationCode = (settings: NormalizedSpatializationSettings): number =>
+  settings.mode === 'binaural' && settings.interpolation === 'bilinear' ? 1 : 0
 
 export type World = Pick<
   WorldImpl,
@@ -618,7 +718,7 @@ class SourceImpl implements Source {
   }
 
   publishControl(): void {
-    const direct = this.#settings.directSimulation
+    const direct = this.#settings.direct
     const overrides = this.#overrides
     const result = this.#outputs
     const direction = this.#position.clone().sub(this.#world.listenerImpl.position)
@@ -634,20 +734,21 @@ class SourceImpl implements Source {
         airAbsorption: overrides?.airAbsorption ?? result.airAbsorption,
         direction: [direction.x, direction.y, direction.z],
         directivity: overrides?.directivity ?? result.directivity,
+        directMixLevel: direct.mixLevel,
         distanceAttenuation: overrides?.distanceAttenuation ?? result.distanceAttenuation,
         effectFlags: directEffectFlags(this.#settings, overrides),
-        hrtf: this.#settings.hrtf,
+        hrtfInterpolation: hrtfInterpolationCode(this.#settings.spatialization),
         occlusion: overrides?.occlusion ?? result.occlusion,
         reflectionReverbTimes: this.#reflectionOutputs,
-        reflectionWet: this.#settings.reflections.enabled
-          ? this.#settings.reflections.wet
+        reflectionsMixLevel: this.#settings.reflections.enabled
+          ? this.#settings.reflections.mixLevel
           : 0,
         reverbReverbTimes: this.#world.listenerReverbTimes,
         reverbWet: this.#world.listenerReverbEnabled ? 1 : 0,
-        spatialBlend: this.#settings.spatialBlend,
+        spatializationBlend: spatializationBlend(this.#settings.spatialization),
+        spatializationMode: spatializationModeCode(this.#settings.spatialization),
         transmission: overrides?.transmission ?? result.transmission,
         transmissionType: direct.transmission !== false
-          && direct.transmission !== undefined
           && direct.transmission.type === 'frequency-dependent'
           ? 1
           : 0,
@@ -728,42 +829,43 @@ class SourceImpl implements Source {
   setSettings(settings: Partial<SourceSettings>): void {
     this.assertActive('Source.setSettings')
     const current: SourceSettings = {
-      directivity: this.#settings.directivity,
-      directSimulation: this.#settings.directSimulation,
-      distanceAttenuation: this.#settings.distanceAttenuation,
-      hrtf: this.#settings.hrtf,
-      reflections: this.#settings.reflections,
-      spatialBlend: this.#settings.spatialBlend,
-    }
-    const nextDirectSimulation = settings.directSimulation === false
-      ? false
-      : typeof settings.directSimulation === 'object'
+      direct: this.#settings.direct,
+      reflections: this.#settings.reflections.enabled
         ? {
-            ...this.#settings.directSimulation,
-            ...settings.directSimulation,
+            mixLevel: this.#settings.reflections.mixLevel,
+            reverbScale: this.#settings.reflections.reverbScale,
           }
-        : settings.directSimulation ?? current.directSimulation
+        : false,
+      spatialization: this.#settings.spatialization,
+    }
+    const nextDirect = settings.direct === false
+      ? false
+      : typeof settings.direct === 'object'
+        ? {
+            ...this.#settings.direct,
+            ...settings.direct,
+          }
+        : current.direct
     const nextReflections = settings.reflections === false
       ? false
-      : settings.reflections === true
+      : typeof settings.reflections === 'object'
         ? {
-            ...this.#settings.reflections,
-            enabled: true,
+            ...(current.reflections === false ? {} : current.reflections),
+            ...settings.reflections,
           }
-        : typeof settings.reflections === 'object'
-          ? {
-              ...this.#settings.reflections,
-              ...settings.reflections,
-            }
-          : current.reflections
+        : current.reflections
+    const nextSpatialization = settings.spatialization
+      ? {
+          ...this.#settings.spatialization,
+          ...settings.spatialization,
+        } as SpatializationSettings
+      : current.spatialization
     const nextSettings = normalizeSettings({
       ...current,
       ...settings,
-      directivity: settings.directivity
-        ? { ...this.#settings.directivity, ...settings.directivity }
-        : current.directivity,
-      directSimulation: nextDirectSimulation,
+      direct: nextDirect,
       reflections: nextReflections,
+      spatialization: nextSpatialization,
     }, this.#world.maxOcclusionSamples)
     if (nextSettings.reflections.enabled && !this.#world.reflectionSettings.enabled)
       throw new Error('Source reflections require World reflections to be enabled')
@@ -796,20 +898,20 @@ class SourceImpl implements Source {
 
   #syncInputs(): void {
     const settings = this.#settings
-    const direct = settings.directSimulation
-    const distance = distanceModel(settings.distanceAttenuation)
-    const air = airModel(direct.airAbsorptionModel)
+    const direct = settings.direct
+    const distance = distanceModel(direct.distanceAttenuation)
+    const air = airModel(direct.airAbsorption)
     const [sourceAhead, sourceUp] = directionsFromQuaternion(this.#orientation)
     let flags = 0
-    if (settings.distanceAttenuation !== false)
+    if (direct.distanceAttenuation !== false)
       flags |= DIRECT_DISTANCE
-    if (direct.airAbsorption === true)
+    if (direct.airAbsorption !== false)
       flags |= DIRECT_AIR
-    if (settings.directivity.dipoleWeight > 0)
+    if (direct.directivity !== false && direct.directivity.dipoleWeight > 0)
       flags |= DIRECT_DIRECTIVITY
-    if (direct.occlusion !== false && direct.occlusion !== undefined)
+    if (direct.occlusion !== false)
       flags |= DIRECT_OCCLUSION
-    if (direct.transmission !== false && direct.transmission !== undefined)
+    if (direct.transmission !== false)
       flags |= DIRECT_TRANSMISSION
 
     withOptionalFloatArray(this.#world.module, distance.curve, distancePointer =>
@@ -838,12 +940,12 @@ class SourceImpl implements Source {
               air.maximum,
               air.samples,
               airPointer,
-              settings.directivity.dipoleWeight,
-              settings.directivity.dipolePower,
-              direct.occlusion === 'volumetric' ? 1 : 0,
-              direct.occlusionRadius ?? 1,
-              direct.occlusion === 'volumetric' ? direct.occlusionSamples ?? 16 : 1,
-              direct.transmission !== false && direct.transmission !== undefined ? 1 : 0,
+              direct.directivity === false ? 0 : direct.directivity.dipoleWeight,
+              direct.directivity === false ? 0 : direct.directivity.dipolePower,
+              direct.occlusion !== false && direct.occlusion.type === 'volumetric' ? 1 : 0,
+              direct.occlusion === false ? 1 : direct.occlusion.radius,
+              direct.occlusion !== false && direct.occlusion.type === 'volumetric' ? direct.occlusion.samples : 1,
+              direct.transmission === false ? 0 : direct.transmission.maxSurfaces,
               this.#world.mainThreadReflections
                 ? settings.reflections.enabled ? 1 : 0
                 : -1,
@@ -888,57 +990,68 @@ export class WorldImpl {
     this.frameSize = integer('frameSize', options.frameSize ?? DEFAULT_FRAME_SIZE)
     this.maxSources = integer('maxSources', options.maxSources ?? DEFAULT_MAX_SOURCES)
     this.maxOcclusionSamples = integer(
-      'simulation.maxOcclusionSamples',
-      options.simulation?.maxOcclusionSamples
-      ?? QUALITY_MAX_OCCLUSION_SAMPLES[options.quality ?? 'medium'],
-    )
-    this.#simulationInterval = 1 / positive(
-      'simulationRate',
-      options.simulationRate ?? DEFAULT_SIMULATION_RATE,
-    )
-    this.#reflectionInterval = 1 / positive(
-      'reflectionRate',
-      options.reflectionRate ?? DEFAULT_REFLECTION_RATE,
+      'direct.maxOcclusionSamples',
+      options.direct?.maxOcclusionSamples
+      ?? QUALITY_MAX_OCCLUSION_SAMPLES[options.occlusionQuality ?? 'medium'],
     )
     const reflectionOptions = options.reflections === false
       ? undefined
       : options.reflections
+    this.#simulationInterval = 1 / positive(
+      'direct.updateRate',
+      options.direct?.updateRate ?? DEFAULT_SIMULATION_RATE,
+    )
+    this.#reflectionInterval = 1 / positive(
+      'reflections.updateRate',
+      reflectionOptions?.updateRate ?? DEFAULT_REFLECTION_RATE,
+    )
     const maxRays = integer(
       'reflections.maxRays',
-      reflectionOptions?.maxRays ?? options.simulation?.maxRays ?? 4096,
+      reflectionOptions?.maxRays ?? 4096,
     )
     const maxDuration = positive(
       'reflections.maxDuration',
-      reflectionOptions?.maxDuration ?? options.simulation?.maxDuration ?? 2,
+      reflectionOptions?.maxDuration ?? 1,
     )
     const maxOrder = integer(
       'reflections.maxOrder',
-      reflectionOptions?.maxOrder ?? options.simulation?.maxOrder ?? 1,
+      reflectionOptions?.maxOrder ?? 1,
       0,
     )
     const diffuseSamples = integer(
       'reflections.diffuseSamples',
-      reflectionOptions?.diffuseSamples
-      ?? options.simulation?.diffuseSamples
-      ?? 32,
+      reflectionOptions?.diffuseSamples ?? 32,
     )
     this.reflectionSettings = {
-      bounces: 8,
+      bounces: integer('reflections.initial.bounces', reflectionOptions?.initial?.bounces ?? 4),
       diffuseSamples,
-      duration: maxDuration,
+      duration: positive('reflections.initial.duration', reflectionOptions?.initial?.duration ?? maxDuration),
       enabled: reflectionOptions !== undefined,
-      irradianceMinDistance: 1,
+      irradianceMinDistance: positive(
+        'reflections.initial.irradianceMinDistance',
+        reflectionOptions?.initial?.irradianceMinDistance ?? 1,
+      ),
       maxDuration,
       maxOrder,
       maxRays,
-      order: maxOrder,
-      rays: maxRays,
+      order: integer('reflections.initial.ambisonicOrder', reflectionOptions?.initial?.ambisonicOrder ?? maxOrder, 0),
+      rays: integer('reflections.initial.rays', reflectionOptions?.initial?.rays ?? maxRays),
     }
+    if (this.reflectionSettings.duration > maxDuration)
+      throw new RangeError(`reflections.initial.duration cannot exceed reflections.maxDuration (${maxDuration})`)
+    if (this.reflectionSettings.order > maxOrder)
+      throw new RangeError(`reflections.initial.ambisonicOrder cannot exceed reflections.maxOrder (${maxOrder})`)
+    if (this.reflectionSettings.rays > maxRays)
+      throw new RangeError(`reflections.initial.rays cannot exceed reflections.maxRays (${maxRays})`)
     const useReflectionWorker = this.reflectionSettings.enabled
       && canUseReflectionWorker()
     this.mainThreadReflections = this.reflectionSettings.enabled
       && !useReflectionWorker
 
+    const reflectionMaxSources = integer(
+      'reflections.maxSources',
+      reflectionOptions?.maxSources ?? this.maxSources,
+    )
     this.context = createHandle(this.module, 'iplContextCreate', out =>
       this.module._sa_context_create(out))
     try {
@@ -951,7 +1064,7 @@ export class WorldImpl {
             this.sceneHandle,
             this.audioContext.sampleRate,
             this.frameSize,
-            this.maxSources + 1,
+            reflectionMaxSources + 1,
             this.maxOcclusionSamples,
             this.mainThreadReflections ? 1 : 0,
             maxRays,
@@ -976,7 +1089,7 @@ export class WorldImpl {
         this.#wasmBinary,
         this.audioContext.sampleRate,
         this.frameSize,
-        this.maxSources + 1,
+        reflectionMaxSources + 1,
         this.reflectionSettings,
         outputs => this.#receiveReflectionOutputs(outputs),
       )
@@ -1078,12 +1191,11 @@ export class WorldImpl {
     this.assertActive('Listener.setReverb')
     if (settings !== false && !this.reflectionSettings.enabled)
       throw new Error('Reflections are disabled for this World')
-    this.listenerReverbEnabled = settings !== false && (settings.enabled ?? true)
+    this.listenerReverbEnabled = settings !== false
     if (this.listenerReverbEnabled && !this.#listenerReverbSource) {
       this.#listenerReverbSource = new SourceImpl(this, 0, {
-        directSimulation: false,
+        direct: false,
         reflections: {
-          enabled: true,
           reverbScale: settings === false
             ? [1, 1, 1]
             : settings.reverbScale,
@@ -1093,7 +1205,6 @@ export class WorldImpl {
     else if (this.#listenerReverbSource && settings !== false) {
       this.#listenerReverbSource.setSettings({
         reflections: {
-          enabled: this.listenerReverbEnabled,
           reverbScale: settings.reverbScale,
         },
       })
@@ -1106,7 +1217,7 @@ export class WorldImpl {
       source.publishControl()
   }
 
-  setReflectionSettings(settings: RuntimeSimulationSettings): void {
+  setReflectionSettings(settings: ReflectionSimulationSettings): void {
     this.assertActive('World.setReflectionSettings')
     if (settings.rays !== undefined) {
       const rays = integer('rays', settings.rays)
@@ -1122,10 +1233,10 @@ export class WorldImpl {
         throw new RangeError(`duration cannot exceed World maxDuration (${this.reflectionSettings.maxDuration})`)
       this.reflectionSettings.duration = duration
     }
-    if (settings.order !== undefined) {
-      const order = integer('order', settings.order, 0)
+    if (settings.ambisonicOrder !== undefined) {
+      const order = integer('ambisonicOrder', settings.ambisonicOrder, 0)
       if (order > this.reflectionSettings.maxOrder)
-        throw new RangeError(`order cannot exceed World maxOrder (${this.reflectionSettings.maxOrder})`)
+        throw new RangeError(`ambisonicOrder cannot exceed World maxOrder (${this.reflectionSettings.maxOrder})`)
       this.reflectionSettings.order = order
     }
     if (settings.irradianceMinDistance !== undefined) {

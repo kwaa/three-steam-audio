@@ -8,21 +8,23 @@ import type {
 
 import { SteamAudioError } from '../three/errors'
 
-const CONTROL_VALUE_COUNT = 23
+const CONTROL_VALUE_COUNT = 26
 
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
   direction: readonly [number, number, number]
   directivity: number
+  directMixLevel: number
   distanceAttenuation: number
   effectFlags: number
-  hrtf: boolean
+  hrtfInterpolation: number
   occlusion: number
   reflectionReverbTimes: readonly [number, number, number]
-  reflectionWet: number
+  reflectionsMixLevel: number
   reverbReverbTimes: readonly [number, number, number]
   reverbWet: number
-  spatialBlend: number
+  spatializationBlend: number
+  spatializationMode: number
   transmission: readonly [number, number, number]
   transmissionType: number
 }
@@ -238,13 +240,16 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     packet[5] = values.occlusion
     packet.set(values.transmission, 6)
     packet.set(values.direction, 9)
-    packet[12] = values.spatialBlend
+    packet[12] = values.spatializationBlend
     packet[13] = values.effectFlags
-    packet[14] = values.hrtf ? values.transmissionType + 1 : -(values.transmissionType + 1)
-    packet.set(values.reflectionReverbTimes, 15)
-    packet[18] = values.reflectionWet
-    packet.set(values.reverbReverbTimes, 19)
-    packet[22] = values.reverbWet
+    packet[14] = values.transmissionType
+    packet[15] = values.spatializationMode
+    packet[16] = values.hrtfInterpolation
+    packet[17] = values.directMixLevel
+    packet.set(values.reflectionReverbTimes, 18)
+    packet[21] = values.reflectionsMixLevel
+    packet.set(values.reverbReverbTimes, 22)
+    packet[25] = values.reverbWet
 
     if (this.#controlData && this.#controlSequence) {
       Atomics.add(this.#controlSequence, 0, 1)

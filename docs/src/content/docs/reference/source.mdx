@@ -66,43 +66,34 @@ Disposes the source and any nodes connected to it.
 
 ## `SourceSettings`
 
-`hrtf`
-: `boolean` — enables HRTF-based binaural rendering. Default: `true`.
+`spatialization`
+: `SpatializationSettings` — direct sound spatialization renderer. `mode: 'binaural'` maps to Steam Audio Direct Binaural, `mode: 'panning'` uses Steam Audio speaker panning, and `mode: 'none'` leaves direct audio unspatialized.
 
-`spatialBlend`
-: `number` in `[0, 1]` — blend between spatialized and unspatialized audio. Default: `1`.
+`direct`
+: `false | DirectSettings` — configures direct-path sound. Pass `false` to disable the direct path.
+
+`reflections`
+: `false | ReflectionSettings` — enables or configures per-source reflections. Requires world reflections.
+
+## `DirectSettings`
+
+`airAbsorption`
+: `boolean | AirAbsorptionSettings` — enables default air absorption or supplies a custom model.
+
+`occlusion`
+: `false | { type?: 'raycast' | 'volumetric', radius?: number, samples?: number }` — occlusion settings.
 
 `distanceAttenuation`
 : `DistanceAttenuationSettings | false` — distance attenuation model, or `false` to disable.
 
 `directivity`
-: `{ dipoleWeight?: number, dipolePower?: number }` — directional emission pattern.
+: `false | { dipoleWeight?: number, dipolePower?: number }` — directional emission pattern.
 
-`directSimulation`
-: `boolean | DirectSimulationSettings` — enables or configures direct-path simulation. Pass `false` to disable.
-
-`reflections`
-: `boolean | ReflectionSettings` — enables or configures per-source reflections. Requires world reflections.
-
-## `DirectSimulationSettings`
-
-`airAbsorption`
-: `boolean` — enables default air absorption.
-
-`airAbsorptionModel`
-: `AirAbsorptionSettings` — custom air absorption model.
-
-`occlusion`
-: `'raycast' | 'volumetric' | false` — occlusion mode.
-
-`occlusionRadius`
-: `number` — apparent source radius for volumetric occlusion. Default: `1`.
-
-`occlusionSamples`
-: `number` — number of rays for volumetric occlusion. Default: `16`.
+`mixLevel`
+: `number` — direct-path output gain. Default: `1`.
 
 `transmission`
-: `false | { type?: 'frequency-dependent' | 'frequency-independent' }` — transmission model. Requires occlusion.
+: `false | { maxSurfaces?: number, type?: 'frequency-dependent' | 'frequency-independent' }` — transmission model. Requires occlusion.
 
 ## `DistanceAttenuationSettings`
 
@@ -112,19 +103,16 @@ Disposes the source and any nodes connected to it.
 `{ model: 'inverse', minDistance?: number }`
 : Inverse distance with a custom minimum distance.
 
-`{ model: 'curve', minDistance, maxDistance, curve, samples? }`
+`{ model: 'curve', minDistance, maxDistance, curve, sampleCount? }`
 : Custom curve function sampled into a lookup table.
 
 ## `ReflectionSettings`
 
-`enabled`
-: `boolean` — enables per-source reflections.
-
 `reverbScale`
 : `ThreeBand` — per-band reverb scale. Default: `[1, 1, 1]`.
 
-`wet`
-: `number` in `[0, 1]` — reflection wet level. Default: `1`.
+`mixLevel`
+: `number` — reflections mix level. Default: `1`.
 
 ## `DirectOverrides`
 
