@@ -94,9 +94,15 @@ interface NativeMesh {
 }
 
 interface NormalizedHRTFSettings {
+  cacheKey: string
+  data?: ArrayBuffer
   normalization: 'none' | 'rms'
+  type: 'default' | 'sofa'
   volume: number
 }
+
+const sofaCacheKeyCounter = { value: 1 }
+const sofaCacheKeys = new WeakMap<ArrayBuffer, string>()
 
 interface NormalizedSourceSettings {
   direct: Required<Pick<DirectSettings, 'mixLevel'>> & {
@@ -148,13 +154,35 @@ const normalizeHRTFSettings = (
   settings: HRTFSettings | undefined,
 ): NormalizedHRTFSettings => {
   const input = settings ?? {}
-  if (input.type !== undefined && input.type !== 'default')
-    throw new RangeError('hrtf.type must be default')
   const normalization = input.normalization ?? 'none'
   if (normalization !== 'none' && normalization !== 'rms')
     throw new RangeError('hrtf.normalization must be none or rms')
+  if (input.type === 'sofa') {
+    if (!(input.data instanceof ArrayBuffer))
+      throw new TypeError('hrtf.data must be an ArrayBuffer when hrtf.type is sofa')
+    if (input.data.byteLength === 0)
+      throw new RangeError('hrtf.data must not be empty')
+    if (input.data.byteLength > 0x7FFFFFFF)
+      throw new RangeError('hrtf.data must not exceed 2147483647 bytes')
+    let cacheKey = sofaCacheKeys.get(input.data)
+    if (cacheKey === undefined) {
+      cacheKey = `sofa-${sofaCacheKeyCounter.value++}`
+      sofaCacheKeys.set(input.data, cacheKey)
+    }
+    return {
+      cacheKey,
+      data: input.data,
+      normalization,
+      type: 'sofa',
+      volume: gain('hrtf.volume', input.volume ?? 1),
+    }
+  }
+  if (input.type !== undefined && input.type !== 'default')
+    throw new RangeError('hrtf.type must be default or sofa')
   return {
+    cacheKey: 'default',
     normalization,
+    type: 'default',
     volume: gain('hrtf.volume', input.volume ?? 1),
   }
 }

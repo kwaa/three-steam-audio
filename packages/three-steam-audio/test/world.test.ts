@@ -235,8 +235,10 @@ describe('world', () => {
       options: { processorOptions: { hrtf: unknown } }
     }
 
-    expect(node.options.processorOptions.hrtf).toEqual({
+    expect(node.options.processorOptions.hrtf).toMatchObject({
+      cacheKey: 'default',
       normalization: 'rms',
+      type: 'default',
       volume: 0.75,
     })
     source.dispose()
@@ -247,6 +249,40 @@ describe('world', () => {
       hrtf: { volume: -1 },
       moduleFactory: async () => native.module,
     })).rejects.toThrow('hrtf.volume')
+  })
+
+  it('passes custom SOFA bytes to every audio worklet with a stable HRTF cache key', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const data = new Uint8Array([1, 2, 3, 4]).buffer
+    const world = await createWorld({
+      audioContext: audio.context,
+      hrtf: { data, normalization: 'rms', type: 'sofa', volume: 0.75 },
+      moduleFactory: async () => native.module,
+    })
+    const source = world.createSource()
+    const first = world.createNode(source) as unknown as {
+      options: { processorOptions: { hrtf: Record<string, unknown> } }
+    }
+    const second = world.createNode(source) as unknown as typeof first
+
+    expect(first.options.processorOptions.hrtf).toMatchObject({
+      data,
+      normalization: 'rms',
+      type: 'sofa',
+      volume: 0.75,
+    })
+    expect(second.options.processorOptions.hrtf.cacheKey)
+      .toBe(first.options.processorOptions.hrtf.cacheKey)
+
+    source.dispose()
+    world.dispose()
+
+    await expect(createWorld({
+      audioContext: audio.context,
+      hrtf: { data: new ArrayBuffer(0), type: 'sofa' },
+      moduleFactory: async () => native.module,
+    })).rejects.toThrow('hrtf.data must not be empty')
   })
 
   it('keeps reflections disabled unless the World explicitly enables them', async () => {

@@ -27,9 +27,10 @@ Creates and initializes a world. This function loads the Steam Audio WASM module
 
 `hrtf`
 : World-level HRTF settings, applied when each audio worklet is initialized:
-  - `type` — currently only `'default'`. Default: `'default'`.
+  - `type` — `'default'` (the built-in HRTF, default) or `'sofa'`.
   - `volume` — linear HRTF correction gain. Must be finite and at least `0`. Default: `1`.
   - `normalization` — `'none'` or `'rms'`. RMS normalization keeps HRTF loudness more consistent between directions. Default: `'none'`.
+  - `data` — required when `type` is `'sofa'`: an `ArrayBuffer` containing a `SimpleFreeFieldHRIR` SOFA file. The same data is reused by all nodes in the World.
 
 `direct`
 : Direct sound world settings:

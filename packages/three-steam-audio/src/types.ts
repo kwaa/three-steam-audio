@@ -86,11 +86,19 @@ export interface DynamicMeshInput extends StaticMeshInput {
   matrixWorld: Matrix4
 }
 
-export interface HRTFSettings {
-  normalization?: 'none' | 'rms'
-  type?: 'default'
-  volume?: number
-}
+export type HRTFSettings
+  = | {
+    /** Bytes of a SimpleFreeFieldHRIR SOFA file. */
+    data: ArrayBuffer
+    normalization?: 'none' | 'rms'
+    type: 'sofa'
+    volume?: number
+  }
+  | {
+    normalization?: 'none' | 'rms'
+    type?: 'default'
+    volume?: number
+  }
 
 export interface Listener {
   setOrientation: (orientation: QuaternionLike) => void

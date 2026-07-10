@@ -238,17 +238,23 @@ void sa_instanced_mesh_release(void* mesh)
 
 EMSCRIPTEN_KEEPALIVE
 int sa_hrtf_create(void* ctx, int sample_rate, int frame_size,
-                   float volume, int normalization, void** out_hrtf)
+                   float volume, int normalization, int type,
+                   const unsigned char* data, int data_size,
+                   void** out_hrtf)
 {
     if (!ctx || !out_hrtf || !isfinite(volume) || volume < 0.0f
-        || (normalization != 0 && normalization != 1)) return 1;
+        || (normalization != 0 && normalization != 1)
+        || (type != IPL_HRTFTYPE_DEFAULT && type != IPL_HRTFTYPE_SOFA)
+        || (type == IPL_HRTFTYPE_SOFA && (!data || data_size <= 0))) return 1;
     IPLAudioSettings audio;
     IPLHRTFSettings settings;
     memset(&audio, 0, sizeof(audio));
     memset(&settings, 0, sizeof(settings));
     audio.samplingRate = sample_rate;
     audio.frameSize = frame_size;
-    settings.type = IPL_HRTFTYPE_DEFAULT;
+    settings.type = (IPLHRTFType)type;
+    settings.sofaData = data;
+    settings.sofaDataSize = data_size;
     settings.volume = volume;
     settings.normType = normalization
         ? IPL_HRTFNORMTYPE_RMS
