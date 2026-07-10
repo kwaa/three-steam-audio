@@ -55,5 +55,3 @@ jobs:
           wranglerVersion: '4'
           command: pages deploy docs/dist --project-name=three-steam-audio
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          PNPM_CONFIG_IGNORE_WORKSPACE_ROOT_CHECK: 'true'
