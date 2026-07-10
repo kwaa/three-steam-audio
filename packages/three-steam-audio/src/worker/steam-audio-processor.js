@@ -50,7 +50,6 @@ const getRuntime = (wasmBinary, frameSize, hrtfSettings) => {
             sofaPointer = allocate(module, data.byteLength)
             module.HEAPU8.set(new Uint8Array(data), sofaPointer)
           }
-          let customHRTFError
           let hrtf
           try {
             hrtf = createHandle(module, out => module._sa_hrtf_create(
@@ -68,20 +67,9 @@ const getRuntime = (wasmBinary, frameSize, hrtfSettings) => {
           catch (error) {
             if (hrtfSettings.type !== 'sofa')
               throw error
-            customHRTFError = error instanceof Error ? error.message : String(error)
-            hrtf = createHandle(module, out => module._sa_hrtf_create(
-              context,
-              sampleRate,
-              frameSize,
-              hrtfSettings.volume,
-              hrtfSettings.normalization === 'rms' ? 1 : 0,
-              0,
-              0,
-              0,
-              out,
-            ))
+            throw new Error(`Unable to load custom SOFA HRTF: ${error instanceof Error ? error.message : String(error)}`)
           }
-          return { context, customHRTFError, hrtf, key, module, references: 0 }
+          return { context, hrtf, key, module, references: 0 }
         }
         finally {
           if (sofaPointer)
@@ -273,12 +261,6 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       this.reflectionTimesPointer = allocate(module, 3 * 4)
       this.reverbTimesPointer = allocate(module, 3 * 4)
       this.ready = true
-      if (runtime.customHRTFError) {
-        this.port.postMessage({
-          message: `Unable to load custom SOFA HRTF; using the default HRTF. ${runtime.customHRTFError}`,
-          type: 'warning',
-        })
-      }
       this.port.postMessage({ type: 'ready' })
     }
     catch (error) {

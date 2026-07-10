@@ -18,7 +18,9 @@ interface BusProcessorInstance {
 
 interface ProcessorInstance {
   dispose: () => void
+  failed: boolean
   port: {
+    messages: unknown[]
     onmessage?: (event: MessageEvent) => void
   }
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
@@ -92,6 +94,41 @@ describe('steamAudioProcessor', () => {
 
     processor.dispose()
     expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
+  })
+
+  it('reports custom SOFA parsing failures instead of silently using the default HRTF', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      hrtf: { cacheKey: string, data: ArrayBuffer, normalization: 'none', type: 'sofa', volume: number }
+      wasmBinary: ArrayBuffer
+    } }) => ProcessorInstance>()
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        hrtf: {
+          cacheKey: 'invalid-sofa',
+          data: new Uint8Array([1, 2, 3, 4]).buffer,
+          normalization: 'none',
+          type: 'sofa',
+          volume: 1,
+        },
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+
+    await waitUntil(() => processor.failed)
+    const failure = processor.port.messages.find((value): value is {
+      message: string
+      type: 'error'
+    } => typeof value === 'object'
+      && value !== null
+      && 'message' in value
+      && 'type' in value
+      && typeof value.message === 'string'
+      && value.type === 'error')
+    expect(failure?.message).toContain('Unable to load custom SOFA HRTF')
+    expect(processor.port.messages).not.toContainEqual({ type: 'ready' })
   })
 
   it('keeps the panning binding constrained to mono input', async () => {

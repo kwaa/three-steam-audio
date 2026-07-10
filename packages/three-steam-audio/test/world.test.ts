@@ -260,18 +260,21 @@ describe('world', () => {
       hrtf: { data, normalization: 'rms', type: 'sofa', volume: 0.75 },
       moduleFactory: async () => native.module,
     })
+    new Uint8Array(data)[0] = 9
     const source = world.createSource()
     const first = world.createNode(source) as unknown as {
-      options: { processorOptions: { hrtf: Record<string, unknown> } }
+      options: { processorOptions: { hrtf: Record<string, unknown> & { data: ArrayBuffer } } }
     }
     const second = world.createNode(source) as unknown as typeof first
 
     expect(first.options.processorOptions.hrtf).toMatchObject({
-      data,
       normalization: 'rms',
       type: 'sofa',
       volume: 0.75,
     })
+    expect(first.options.processorOptions.hrtf.data).not.toBe(data)
+    expect([...new Uint8Array(first.options.processorOptions.hrtf.data)])
+      .toEqual([1, 2, 3, 4])
     expect(second.options.processorOptions.hrtf.cacheKey)
       .toBe(first.options.processorOptions.hrtf.cacheKey)
 

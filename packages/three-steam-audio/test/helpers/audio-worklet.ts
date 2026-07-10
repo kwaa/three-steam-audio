@@ -1,8 +1,11 @@
 export class WorkletPort {
+  messages: unknown[] = []
   onmessage?: (event: MessageEvent) => void
 
   close() {}
-  postMessage() {}
+  postMessage(message: unknown) {
+    this.messages.push(message)
+  }
 }
 
 export class FakeAudioWorkletProcessor {

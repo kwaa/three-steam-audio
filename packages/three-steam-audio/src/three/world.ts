@@ -102,7 +102,6 @@ interface NormalizedHRTFSettings {
 }
 
 const sofaCacheKeyCounter = { value: 1 }
-const sofaCacheKeys = new WeakMap<ArrayBuffer, string>()
 
 interface NormalizedSourceSettings {
   direct: Required<Pick<DirectSettings, 'mixLevel'>> & {
@@ -164,14 +163,10 @@ const normalizeHRTFSettings = (
       throw new RangeError('hrtf.data must not be empty')
     if (input.data.byteLength > 0x7FFFFFFF)
       throw new RangeError('hrtf.data must not exceed 2147483647 bytes')
-    let cacheKey = sofaCacheKeys.get(input.data)
-    if (cacheKey === undefined) {
-      cacheKey = `sofa-${sofaCacheKeyCounter.value++}`
-      sofaCacheKeys.set(input.data, cacheKey)
-    }
+    const data = input.data.slice(0)
     return {
-      cacheKey,
-      data: input.data,
+      cacheKey: `sofa-${sofaCacheKeyCounter.value++}`,
+      data,
       normalization,
       type: 'sofa',
       volume: gain('hrtf.volume', input.volume ?? 1),
