@@ -148,7 +148,7 @@ pnpm dev:example-react # run demo
 - [x] Rigid dynamic acoustic mesh support.
 - [x] Core Three.js world/source/listener API.
 - [x] React Three Fiber integration components.
-- [ ] Add support for custom HRTFs via SOFA files.
+- [x] Add support for custom HRTFs via SOFA files.
 - [ ] Improve direct-path usability with better validation, diagnostics, and
       browser/runtime error handling.
 - [x] Add worker-based real-time parametric reflections simulation.

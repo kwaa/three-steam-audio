@@ -42,7 +42,9 @@ void sa_instanced_mesh_remove(void* mesh, void* parent_scene);
 void sa_instanced_mesh_release(void* mesh);
 
 int sa_hrtf_create(void* ctx, int sample_rate, int frame_size,
-                   float volume, int normalization, void** out_hrtf);
+                   float volume, int normalization, int type,
+                   const unsigned char* data, int data_size,
+                   void** out_hrtf);
 void sa_hrtf_release(void* hrtf);
 
 int sa_binaural_effect_create(void* ctx, int sample_rate, int frame_size,

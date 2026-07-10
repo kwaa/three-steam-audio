@@ -5,7 +5,7 @@ const CONTROL_VALUE_COUNT = 26
 const runtimePromises = new Map()
 
 const runtimeKey = (frameSize, hrtfSettings) =>
-  `${frameSize}:${hrtfSettings.volume}:${hrtfSettings.normalization}`
+  `${frameSize}:${hrtfSettings.cacheKey}:${hrtfSettings.volume}:${hrtfSettings.normalization}`
 
 const allocate = (module, byteLength) => {
   const pointer = module._malloc(byteLength)
@@ -41,16 +41,40 @@ const getRuntime = (wasmBinary, frameSize, hrtfSettings) => {
     }).then((module) => {
       const context = createHandle(module, out => module._sa_context_create(out))
       try {
-        const hrtf = createHandle(module, out =>
-          module._sa_hrtf_create(
-            context,
-            sampleRate,
-            frameSize,
-            hrtfSettings.volume,
-            hrtfSettings.normalization === 'rms' ? 1 : 0,
-            out,
-          ))
-        return { context, hrtf, key, module, references: 0 }
+        let sofaPointer = 0
+        try {
+          if (hrtfSettings.type === 'sofa') {
+            const data = hrtfSettings.data
+            if (!(data instanceof ArrayBuffer) || data.byteLength === 0)
+              throw new Error('Custom SOFA HRTF data is missing or empty')
+            sofaPointer = allocate(module, data.byteLength)
+            module.HEAPU8.set(new Uint8Array(data), sofaPointer)
+          }
+          let hrtf
+          try {
+            hrtf = createHandle(module, out => module._sa_hrtf_create(
+              context,
+              sampleRate,
+              frameSize,
+              hrtfSettings.volume,
+              hrtfSettings.normalization === 'rms' ? 1 : 0,
+              hrtfSettings.type === 'sofa' ? 1 : 0,
+              sofaPointer,
+              hrtfSettings.data?.byteLength ?? 0,
+              out,
+            ))
+          }
+          catch (error) {
+            if (hrtfSettings.type !== 'sofa')
+              throw error
+            throw new Error(`Unable to load custom SOFA HRTF: ${error instanceof Error ? error.message : String(error)}`)
+          }
+          return { context, hrtf, key, module, references: 0 }
+        }
+        finally {
+          if (sofaPointer)
+            module._free(sofaPointer)
+        }
       }
       catch (error) {
         module._sa_context_release(context)
@@ -133,7 +157,12 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
         this.dispose()
     }
 
-    const hrtf = processorOptions.hrtf ?? { normalization: 'none', volume: 1 }
+    const hrtf = processorOptions.hrtf ?? {
+      cacheKey: 'default',
+      normalization: 'none',
+      type: 'default',
+      volume: 1,
+    }
     getRuntime(processorOptions.wasmBinary, this.frameSize, hrtf)
       .then((runtime) => {
         runtime.references++

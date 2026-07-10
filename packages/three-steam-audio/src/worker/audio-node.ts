@@ -38,7 +38,10 @@ export type SteamAudioNodeState
 interface NodeOptions {
   frameSize: number
   hrtf: {
+    cacheKey: string
+    data?: ArrayBuffer
     normalization: 'none' | 'rms'
+    type: 'default' | 'sofa'
     volume: number
   }
   onDispose: (node: SteamAudioNode) => void
