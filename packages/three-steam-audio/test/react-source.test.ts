@@ -16,4 +16,30 @@ describe('steamAudioSource settings merge', () => {
       },
     }).direct).toEqual({ mixLevel: 0.5 })
   })
+
+  it('keeps P0 direct settings available through the direct prop', () => {
+    expect(mergeSourceSettings(undefined, {
+      direct: {
+        mixLevel: 0.5,
+        occlusion: { type: 'raycast' },
+        transmission: { maxSurfaces: 4 },
+      },
+    }).direct).toEqual({
+      mixLevel: 0.5,
+      occlusion: { type: 'raycast' },
+      transmission: { maxSurfaces: 4 },
+    })
+  })
+
+  it('merges partial spatialization props with settings', () => {
+    expect(mergeSourceSettings({
+      spatialization: { blend: 0.5, mode: 'binaural' },
+    }, {
+      spatialization: { interpolation: 'bilinear' },
+    }).spatialization).toEqual({
+      blend: 0.5,
+      interpolation: 'bilinear',
+      mode: 'binaural',
+    })
+  })
 })

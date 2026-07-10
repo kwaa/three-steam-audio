@@ -115,7 +115,7 @@ Declarative source component.
 : `boolean`.
 
 `direct`
-: `SourceSettings['direct']`.
+: `SourceSettings['direct']`. Use this for full direct-path settings, including `mixLevel` and `transmission.maxSurfaces`.
 
 `occlusion`
 : `SourceSettings['direct']['occlusion']`.
@@ -140,6 +140,8 @@ Declarative source component.
 
 `settings`
 : `SourceSettings` — full source settings object. Other props are merged into this object.
+
+World HRTF settings are passed through `<SteamAudio options={{ hrtf: ... }}>`.
 
 `onReady`
 : `(api: SteamAudioSourceApi) => void` — called when the source group is mounted.

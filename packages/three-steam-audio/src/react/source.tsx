@@ -161,7 +161,12 @@ export const mergeSourceSettings = (
     ...settings,
     direct,
     reflections: props.reflections ?? settings?.reflections,
-    spatialization: props.spatialization ?? settings?.spatialization,
+    spatialization: props.spatialization
+      ? {
+          ...settings?.spatialization,
+          ...props.spatialization,
+        }
+      : settings?.spatialization,
   }
 }
 
