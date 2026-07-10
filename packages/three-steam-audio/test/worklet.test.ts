@@ -227,6 +227,71 @@ describe('steamAudioProcessor', () => {
     processor.dispose()
   })
 
+  it('crossfades between binaural and stereo panning renderers', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => ProcessorInstance>()
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    }) as ProcessorInstance & {
+      directMix: number
+      spatializationTransition: number
+    }
+    await waitUntil(() => processor.ready)
+
+    const control = new Float32Array(26)
+    control.set([1, 1, 1, 1, 1, 1, 1, 1, 1])
+    control.set([1, 0, 0], 9)
+    control[11] = -1
+    control[12] = 1
+    control[13] = 1
+    control[15] = 1
+    control[17] = 1
+    processor.port.onmessage?.({
+      data: { type: 'control', values: control },
+    } as MessageEvent)
+
+    const render = () => {
+      const direct = [new Float32Array(128), new Float32Array(128)]
+      const reflections = [new Float32Array(128), new Float32Array(128)]
+      const reverb = [new Float32Array(128), new Float32Array(128)]
+      processor.process([[new Float32Array(128).fill(0.5)]], [direct, reflections, reverb])
+      return direct
+    }
+    for (let block = 0; block < 4; block++)
+      render()
+
+    control[15] = 2
+    processor.port.onmessage?.({
+      data: { type: 'control', values: control },
+    } as MessageEvent)
+    render()
+    const firstPanningBlock = render()
+    expect(processor.spatializationTransition).toBeGreaterThan(0)
+    expect(processor.spatializationTransition).toBeLessThan(1)
+    expect(firstPanningBlock[0].every(Number.isFinite)).toBe(true)
+    expect(firstPanningBlock[1].every(Number.isFinite)).toBe(true)
+
+    for (let block = 0; block < 20; block++)
+      render()
+    expect(processor.spatializationTransition).toBe(1)
+
+    control[17] = 0
+    processor.port.onmessage?.({
+      data: { type: 'control', values: control },
+    } as MessageEvent)
+    render()
+    render()
+    expect(processor.directMix).toBeGreaterThan(0)
+    expect(processor.directMix).toBeLessThan(1)
+    processor.dispose()
+  })
+
   it('applies controls delivered through isolated-page shared memory', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const controlBuffer = new SharedArrayBuffer(4 + 26 * 4)

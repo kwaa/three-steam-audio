@@ -10,6 +10,7 @@ import type {
   DistanceAttenuationSettings,
   DynamicAcousticMeshHandle,
   DynamicMeshInput,
+  HRTFSettings,
   Listener,
   OcclusionSettings,
   QuaternionLike,
@@ -64,6 +65,7 @@ const DEFAULT_MAX_SOURCES = 32
 const DEFAULT_SIMULATION_RATE = 60
 const DEFAULT_REFLECTION_RATE = 10
 const DEFAULT_MAX_OCCLUSION_SAMPLES = 128
+const MAX_TRANSMISSION_SURFACES = 8
 const QUALITY_MAX_OCCLUSION_SAMPLES = {
   high: 256,
   low: 32,
@@ -89,6 +91,11 @@ export interface NormalizedReflectionSimulationSettings {
 
 interface NativeMesh {
   dispose: () => void
+}
+
+interface NormalizedHRTFSettings {
+  normalization: 'none' | 'rms'
+  volume: number
 }
 
 interface NormalizedSourceSettings {
@@ -135,6 +142,21 @@ const gain = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value < 0)
     throw new RangeError(`${name} must be a finite number >= 0`)
   return value
+}
+
+const normalizeHRTFSettings = (
+  settings: HRTFSettings | undefined,
+): NormalizedHRTFSettings => {
+  const input = settings ?? {}
+  if (input.type !== undefined && input.type !== 'default')
+    throw new RangeError('hrtf.type must be default')
+  const normalization = input.normalization ?? 'none'
+  if (normalization !== 'none' && normalization !== 'rms')
+    throw new RangeError('hrtf.normalization must be none or rms')
+  return {
+    normalization,
+    volume: gain('hrtf.volume', input.volume ?? 1),
+  }
 }
 
 const positive = (name: string, value: number): number => {
@@ -223,8 +245,17 @@ const normalizeTransmission = (
 ): NormalizedSourceSettings['direct']['transmission'] => {
   if (transmission === false || transmission === undefined)
     return false
+  const maxSurfaces = integer(
+    'direct.transmission.maxSurfaces',
+    transmission.maxSurfaces ?? 1,
+  )
+  if (maxSurfaces > MAX_TRANSMISSION_SURFACES) {
+    throw new RangeError(
+      `direct.transmission.maxSurfaces cannot exceed ${MAX_TRANSMISSION_SURFACES}`,
+    )
+  }
   return {
-    maxSurfaces: integer('direct.transmission.maxSurfaces', transmission.maxSurfaces ?? 1),
+    maxSurfaces,
     type: transmission.type ?? 'frequency-independent',
   }
 }
@@ -257,7 +288,7 @@ const normalizeDirectSettings = (
     distanceAttenuation: input.distanceAttenuation === undefined
       ? { model: 'default' }
       : input.distanceAttenuation,
-    mixLevel: gain('direct.mixLevel', input.mixLevel ?? 1),
+    mixLevel: clampUnit('direct.mixLevel', input.mixLevel ?? 1),
     occlusion,
     transmission,
   }
@@ -958,6 +989,7 @@ export class WorldImpl {
   readonly audioContext: AudioContext
   readonly context: number
   readonly frameSize: number
+  readonly hrtf: NormalizedHRTFSettings
   readonly listener: Listener
   readonly listenerImpl: ListenerImpl
   listenerReverbEnabled = false
@@ -988,6 +1020,7 @@ export class WorldImpl {
     this.module = runtime.module
     this.#wasmBinary = runtime.wasmBinary
     this.frameSize = integer('frameSize', options.frameSize ?? DEFAULT_FRAME_SIZE)
+    this.hrtf = normalizeHRTFSettings(options.hrtf)
     this.maxSources = integer('maxSources', options.maxSources ?? DEFAULT_MAX_SOURCES)
     this.maxOcclusionSamples = integer(
       'direct.maxOcclusionSamples',
@@ -1112,6 +1145,7 @@ export class WorldImpl {
     sourceValue.assertActive('World.createNode')
     const node = new SteamAudioNode(this.audioContext, {
       frameSize: this.frameSize,
+      hrtf: this.hrtf,
       onDispose: disposedNode => sourceValue.nodes.delete(disposedNode),
       source: sourceValue,
       wasmBinary: this.#wasmBinary,

@@ -183,6 +183,15 @@ describe('world', () => {
         transmission: {},
       },
     })).toThrow(/Transmission requires occlusion/)
+    expect(() => world.createSource({
+      direct: {
+        occlusion: { type: 'raycast' },
+        transmission: { maxSurfaces: 9 },
+      },
+    })).toThrow(/maxSurfaces cannot exceed 8/)
+    expect(() => world.createSource({
+      direct: { mixLevel: 1.01 },
+    })).toThrow(/direct\.mixLevel.*\[0, 1\]/)
     const source = world.createSource({
       direct: {
         airAbsorption: true,
@@ -202,6 +211,33 @@ describe('world', () => {
     expect(() => world.createSource()).toThrow(/maxSources/)
     source.dispose()
     world.dispose()
+  })
+
+  it('passes one validated HRTF configuration to every audio worklet', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      hrtf: { normalization: 'rms', volume: 0.75 },
+      moduleFactory: async () => native.module,
+    })
+    const source = world.createSource()
+    const node = world.createNode(source) as unknown as {
+      options: { processorOptions: { hrtf: unknown } }
+    }
+
+    expect(node.options.processorOptions.hrtf).toEqual({
+      normalization: 'rms',
+      volume: 0.75,
+    })
+    source.dispose()
+    world.dispose()
+
+    await expect(createWorld({
+      audioContext: audio.context,
+      hrtf: { volume: -1 },
+      moduleFactory: async () => native.module,
+    })).rejects.toThrow('hrtf.volume')
   })
 
   it('keeps reflections disabled unless the World explicitly enables them', async () => {

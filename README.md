@@ -18,13 +18,17 @@ import { createWorld, Materials } from 'three-steam-audio'
 const audioContext = new AudioContext()
 await audioContext.resume()
 
-const world = await createWorld({ audioContext })
+const world = await createWorld({
+  audioContext,
+  hrtf: { normalization: 'rms', volume: 1 },
+})
 const source = world.createSource({
   direct: {
     airAbsorption: true,
     occlusion: { type: 'raycast' },
   },
   spatialization: {
+    interpolation: 'nearest',
     mode: 'binaural',
   },
 })

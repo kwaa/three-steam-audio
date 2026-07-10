@@ -25,6 +25,12 @@ Creates and initializes a world. This function loads the Steam Audio WASM module
 `frameSize`
 : Number of samples processed per audio frame. Default: `1024`.
 
+`hrtf`
+: World-level HRTF settings, applied when each audio worklet is initialized:
+  - `type` — currently only `'default'`. Default: `'default'`.
+  - `volume` — linear HRTF correction gain. Must be finite and at least `0`. Default: `1`.
+  - `normalization` — `'none'` or `'rms'`. RMS normalization keeps HRTF loudness more consistent between directions. Default: `'none'`.
+
 `direct`
 : Direct sound world settings:
   - `updateRate` — how often direct simulation runs, in Hz. Default: `60`

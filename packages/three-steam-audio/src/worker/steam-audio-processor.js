@@ -28,8 +28,9 @@ const createHandle = (module, create) => {
   }
 }
 
-const getRuntime = (wasmBinary, frameSize) => {
-  let promise = runtimePromises.get(frameSize)
+const getRuntime = (wasmBinary, frameSize, hrtfSettings) => {
+  const key = `${frameSize}:${hrtfSettings.volume}:${hrtfSettings.normalization}`
+  let promise = runtimePromises.get(key)
   if (!promise) {
     promise = createSteamAudioModule({
       locateFile: path => path,
@@ -37,10 +38,17 @@ const getRuntime = (wasmBinary, frameSize) => {
     }).then((module) => {
       const context = createHandle(module, out => module._sa_context_create(out))
       const hrtf = createHandle(module, out =>
-        module._sa_hrtf_create(context, sampleRate, frameSize, out))
+        module._sa_hrtf_create(
+          context,
+          sampleRate,
+          frameSize,
+          hrtfSettings.volume,
+          hrtfSettings.normalization === 'rms' ? 1 : 0,
+          out,
+        ))
       return { context, hrtf, module }
     })
-    runtimePromises.set(frameSize, promise)
+    runtimePromises.set(key, promise)
   }
   return promise
 }
@@ -71,7 +79,11 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.control[12] = 1
     this.control[15] = 1
     this.control[17] = 1
+    this.directMix = 1
     this.spatializationMix = 1
+    this.spatializationMode = 1
+    this.previousSpatializationMode = 1
+    this.spatializationTransition = 1
 
     const ringSize = this.frameSize * 2
     this.inputLeft = new Float32Array(ringSize)
@@ -100,7 +112,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
         this.dispose()
     }
 
-    getRuntime(processorOptions.wasmBinary, this.frameSize)
+    const hrtf = processorOptions.hrtf ?? { normalization: 'none', volume: 1 }
+    getRuntime(processorOptions.wasmBinary, this.frameSize, hrtf)
       .then(runtime => this.initialize(runtime))
       .catch((error) => {
         this.failed = true
@@ -109,6 +122,46 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
           type: 'error',
         })
       })
+  }
+
+  applySpatialization(mode, outputPointer) {
+    const { module } = this.runtime
+    if (mode === 0) {
+      const heap = module.HEAPF32
+      const inputOffset = this.directPointer >>> 2
+      const outputOffset = outputPointer >>> 2
+      heap.set(
+        heap.subarray(inputOffset, inputOffset + this.frameSize * 2),
+        outputOffset,
+      )
+      return
+    }
+    if (mode === 1) {
+      module._sa_binaural_effect_apply(
+        this.binauralEffect,
+        this.runtime.hrtf,
+        this.control[9],
+        this.control[10],
+        this.control[11],
+        1,
+        this.control[16],
+        this.monoPointer,
+        outputPointer,
+        1,
+        this.frameSize,
+      )
+      return
+    }
+    module._sa_panning_effect_apply(
+      this.panningEffect,
+      this.control[9],
+      this.control[10],
+      this.control[11],
+      this.monoPointer,
+      outputPointer,
+      1,
+      this.frameSize,
+    )
   }
 
   dispose() {
@@ -126,6 +179,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     module._free(this.inputPointer)
     module._free(this.directPointer)
     module._free(this.outputPointer)
+    module._free(this.previousSpatializationPointer)
     module._free(this.airPointer)
     module._free(this.transmissionPointer)
     module._free(this.monoPointer)
@@ -154,6 +208,7 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.inputPointer = allocate(module, this.frameSize * 2 * 4)
     this.directPointer = allocate(module, this.frameSize * 2 * 4)
     this.outputPointer = allocate(module, this.frameSize * 2 * 4)
+    this.previousSpatializationPointer = allocate(module, this.frameSize * 2 * 4)
     this.airPointer = allocate(module, 3 * 4)
     this.transmissionPointer = allocate(module, 3 * 4)
     this.monoPointer = allocate(module, this.frameSize * 4)
@@ -212,7 +267,12 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       heap[transmissionOffset + band] = this.control[6 + band]
     }
     const transmissionType = this.control[14]
-    const spatializationMode = this.control[15]
+    const requestedSpatializationMode = this.control[15]
+    if (requestedSpatializationMode !== this.spatializationMode) {
+      this.previousSpatializationMode = this.spatializationMode
+      this.spatializationMode = requestedSpatializationMode
+      this.spatializationTransition = 0
+    }
     module._sa_direct_effect_apply(
       this.directEffect,
       this.control[13],
@@ -235,31 +295,11 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
         + heap[directOffset + this.frameSize + index]
       )
     }
-    if (spatializationMode === 1) {
-      module._sa_binaural_effect_apply(
-        this.binauralEffect,
-        this.runtime.hrtf,
-        this.control[9],
-        this.control[10],
-        this.control[11],
-        this.control[12],
-        this.control[16],
-        this.monoPointer,
-        this.outputPointer,
-        1,
-        this.frameSize,
-      )
-    }
-    else if (spatializationMode === 2) {
-      module._sa_panning_effect_apply(
-        this.panningEffect,
-        this.control[9],
-        this.control[10],
-        this.control[11],
-        this.monoPointer,
-        this.outputPointer,
-        1,
-        this.frameSize,
+    this.applySpatialization(this.spatializationMode, this.outputPointer)
+    if (this.spatializationTransition < 1) {
+      this.applySpatialization(
+        this.previousSpatializationMode,
+        this.previousSpatializationPointer,
       )
     }
 
@@ -304,28 +344,45 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
       )
     }
 
-    const targetMix = spatializationMode === 0 ? 0 : this.control[12]
+    const targetMix = this.spatializationMode === 0 ? 0 : this.control[12]
+    const targetDirectMix = this.control[17]
     const mixStep = 1 / (sampleRate * 0.02)
     const outputOffset = this.outputPointer >>> 2
+    const previousSpatializationOffset = this.previousSpatializationPointer >>> 2
     const reflectionOffset = this.reflectionPointer >>> 2
     const reverbOffset = this.reverbPointer >>> 2
     for (let index = 0; index < this.frameSize; index++) {
-      if (spatializationMode === 0)
-        this.spatializationMix = 0
+      this.spatializationTransition = Math.min(
+        1,
+        this.spatializationTransition + mixStep,
+      )
       if (this.spatializationMix < targetMix)
         this.spatializationMix = Math.min(targetMix, this.spatializationMix + mixStep)
       else if (this.spatializationMix > targetMix)
         this.spatializationMix = Math.max(targetMix, this.spatializationMix - mixStep)
+      if (this.directMix < targetDirectMix)
+        this.directMix = Math.min(targetDirectMix, this.directMix + mixStep)
+      else if (this.directMix > targetDirectMix)
+        this.directMix = Math.max(targetDirectMix, this.directMix - mixStep)
       const dryMix = 1 - this.spatializationMix
+      const previousMix = 1 - this.spatializationTransition
+      const spatializedLeft = (
+        heap[outputOffset + index] * this.spatializationTransition
+        + heap[previousSpatializationOffset + index] * previousMix
+      )
+      const spatializedRight = (
+        heap[outputOffset + this.frameSize + index] * this.spatializationTransition
+        + heap[previousSpatializationOffset + this.frameSize + index] * previousMix
+      )
       heap[outputOffset + index] = (
-        heap[outputOffset + index] * this.spatializationMix
+        spatializedLeft * this.spatializationMix
         + heap[directOffset + index] * dryMix
-      ) * this.control[17]
+      ) * this.directMix
       heap[outputOffset + this.frameSize + index]
         = (
-          heap[outputOffset + this.frameSize + index] * this.spatializationMix
+          spatializedRight * this.spatializationMix
           + heap[directOffset + this.frameSize + index] * dryMix
-        ) * this.control[17]
+        ) * this.directMix
     }
 
     for (let index = 0; index < this.frameSize; index++) {

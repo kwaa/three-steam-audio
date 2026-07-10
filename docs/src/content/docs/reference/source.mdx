@@ -67,7 +67,11 @@ Disposes the source and any nodes connected to it.
 ## `SourceSettings`
 
 `spatialization`
-: `SpatializationSettings` — direct sound spatialization renderer. `mode: 'binaural'` maps to Steam Audio Direct Binaural, `mode: 'panning'` uses Steam Audio speaker panning, and `mode: 'none'` leaves direct audio unspatialized.
+: `SpatializationSettings` — direct sound spatialization renderer. Defaults to `{ mode: 'binaural', blend: 1, interpolation: 'nearest' }`.
+  - `mode: 'binaural'` maps to Steam Audio Direct Binaural. `interpolation` may be `'nearest'` (default, lower CPU cost) or `'bilinear'` (smoother moving wide-band sources at a higher CPU cost).
+  - `mode: 'panning'` uses Steam Audio stereo speaker panning.
+  - `mode: 'none'` leaves direct audio unspatialized.
+  - `blend` is available for binaural and panning modes. It is in `[0, 1]`, where `1` is fully spatialized.
 
 `direct`
 : `false | DirectSettings` — configures direct-path sound. Pass `false` to disable the direct path.
@@ -90,10 +94,10 @@ Disposes the source and any nodes connected to it.
 : `false | { dipoleWeight?: number, dipolePower?: number }` — directional emission pattern.
 
 `mixLevel`
-: `number` — direct-path output gain. Default: `1`.
+: `number` in `[0, 1]` — direct-path output gain. Default: `1`. Use an external `GainNode` for gains above unity.
 
 `transmission`
-: `false | { maxSurfaces?: number, type?: 'frequency-dependent' | 'frequency-independent' }` — transmission model. Requires occlusion.
+: `false | { maxSurfaces?: number, type?: 'frequency-dependent' | 'frequency-independent' }` — transmission model. Requires occlusion. `maxSurfaces` is an integer in `[1, 8]`; default: `1`. `type` defaults to `'frequency-independent'`.
 
 ## `DistanceAttenuationSettings`
 

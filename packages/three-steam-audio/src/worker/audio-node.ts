@@ -37,6 +37,10 @@ export type SteamAudioNodeState
 
 interface NodeOptions {
   frameSize: number
+  hrtf: {
+    normalization: 'none' | 'rms'
+    volume: number
+  }
   onDispose: (node: SteamAudioNode) => void
   source: Source
   wasmBinary: ArrayBuffer
@@ -166,6 +170,7 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
       processorOptions: {
         controlBuffer,
         frameSize: options.frameSize,
+        hrtf: options.hrtf,
         wasmBinary: options.wasmBinary,
       },
     })
