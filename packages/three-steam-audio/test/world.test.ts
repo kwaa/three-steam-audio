@@ -386,6 +386,39 @@ describe('world', () => {
     world.dispose()
   })
 
+  it('keeps a source in front after rotating the camera and listener', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      moduleFactory: async () => native.module,
+      perspectiveCorrection: { enabled: true },
+    })
+    const camera = new PerspectiveCamera(90, 1, 0.1, 100)
+    camera.rotation.y = Math.PI / 2
+    camera.updateProjectionMatrix()
+    camera.updateMatrixWorld()
+    world.listener.setCamera(camera)
+    world.listener.setTransform(camera.position, camera.quaternion)
+    const source = world.createSource({ perspectiveCorrection: true })
+    const node = world.createNode(source)
+    const sourcePosition = new Vector3(0, 0, -10).applyQuaternion(camera.quaternion)
+
+    source.setPosition(sourcePosition)
+
+    const control = ((node.port as unknown) as FakePort).messages.at(-1) as {
+      values: Float32Array
+    }
+    expect([...control.values.slice(9, 12)]).toEqual([
+      expect.closeTo(0),
+      expect.closeTo(0),
+      expect.closeTo(-1),
+    ])
+
+    source.dispose()
+    world.dispose()
+  })
+
   it('disables perspective correction for XR cameras unless explicitly enabled', async () => {
     const native = createNativeModule()
     const audio = createAudioContext()

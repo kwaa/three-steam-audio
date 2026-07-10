@@ -90,6 +90,7 @@ const SteamAudioProvider = ({
     source: new Set(),
   })
   const listenerCountRef = useRef(0)
+  const previousCameraRef = useRef<Camera | null>(null)
   const warnedRef = useRef(false)
   const listenerObjectRef = useRef<RefObject<null | Object3D> | undefined>(undefined)
   const listenerPosition = useMemo(() => new Vector3(), [])
@@ -120,7 +121,11 @@ const SteamAudioProvider = ({
       : object?.current ?? state.camera
     target.getWorldPosition(listenerPosition)
     target.getWorldQuaternion(listenerOrientation)
-    world.listener.setCamera(target instanceof Camera ? target : null)
+    const camera = target instanceof Camera ? target : null
+    if (previousCameraRef.current !== camera) {
+      previousCameraRef.current = camera
+      world.listener.setCamera(camera)
+    }
     world.listener.setTransform(listenerPosition, listenerOrientation)
   }
 

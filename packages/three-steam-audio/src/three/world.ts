@@ -816,17 +816,21 @@ class SourceImpl implements Source {
     const direct = this.#settings.direct
     const overrides = this.#overrides
     const result = this.#outputs
-    const direction = this.#world.getPerspectiveCorrectedDirection(
+    const correctedDirection = this.#world.getPerspectiveCorrectedDirection(
       this.#position,
       this.#settings.perspectiveCorrection,
-    ) ?? this.#position.clone().sub(this.#world.listenerImpl.position)
+    )
+    const direction = correctedDirection
+      ?? this.#position.clone().sub(this.#world.listenerImpl.position)
     if (direction.lengthSq() < 1e-12)
       direction.set(0, 0, -1)
     else
       direction.normalize()
-    direction.applyQuaternion(
-      this.#world.listenerImpl.orientation.clone().invert(),
-    )
+    if (correctedDirection === undefined) {
+      direction.applyQuaternion(
+        this.#world.listenerImpl.orientation.clone().invert(),
+      )
+    }
     for (const node of this.nodes) {
       node.setControl({
         airAbsorption: overrides?.airAbsorption ?? result.airAbsorption,
