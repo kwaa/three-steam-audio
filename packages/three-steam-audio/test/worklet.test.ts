@@ -45,6 +45,14 @@ const waitUntil = async (predicate: () => boolean): Promise<void> => {
   }
 }
 
+const renderConstantInput = (processor: ProcessorInstance): Float32Array[] => {
+  const direct = [new Float32Array(128), new Float32Array(128)]
+  const reflections = [new Float32Array(128), new Float32Array(128)]
+  const reverb = [new Float32Array(128), new Float32Array(128)]
+  processor.process([[new Float32Array(128).fill(0.5)]], [direct, reflections, reverb])
+  return direct
+}
+
 describe('steamAudioProcessor', () => {
   beforeEach(() => {
     Object.assign(globalThis, {
@@ -240,7 +248,7 @@ describe('steamAudioProcessor', () => {
       },
     }) as ProcessorInstance & {
       directMix: number
-      spatializationTransition: number
+      rendererWeights: Float32Array
     }
     await waitUntil(() => processor.ready)
 
@@ -256,13 +264,7 @@ describe('steamAudioProcessor', () => {
       data: { type: 'control', values: control },
     } as MessageEvent)
 
-    const render = () => {
-      const direct = [new Float32Array(128), new Float32Array(128)]
-      const reflections = [new Float32Array(128), new Float32Array(128)]
-      const reverb = [new Float32Array(128), new Float32Array(128)]
-      processor.process([[new Float32Array(128).fill(0.5)]], [direct, reflections, reverb])
-      return direct
-    }
+    const render = () => renderConstantInput(processor)
     for (let block = 0; block < 4; block++)
       render()
 
@@ -272,14 +274,30 @@ describe('steamAudioProcessor', () => {
     } as MessageEvent)
     render()
     const firstPanningBlock = render()
-    expect(processor.spatializationTransition).toBeGreaterThan(0)
-    expect(processor.spatializationTransition).toBeLessThan(1)
+    expect(processor.rendererWeights[1]).toBeGreaterThan(0)
+    expect(processor.rendererWeights[1]).toBeLessThan(1)
+    expect(processor.rendererWeights[2]).toBeGreaterThan(0)
+    expect(processor.rendererWeights[2]).toBeLessThan(1)
     expect(firstPanningBlock[0].every(Number.isFinite)).toBe(true)
     expect(firstPanningBlock[1].every(Number.isFinite)).toBe(true)
 
+    control[15] = 0
+    processor.port.onmessage?.({
+      data: { type: 'control', values: control },
+    } as MessageEvent)
+    render()
+    render()
+    expect(processor.rendererWeights[1]).toBeGreaterThan(0)
+    expect(processor.rendererWeights[2]).toBeGreaterThan(0)
+    expect(processor.rendererWeights[0]).toBeGreaterThan(0)
+
     for (let block = 0; block < 20; block++)
       render()
-    expect(processor.spatializationTransition).toBe(1)
+    expect([...processor.rendererWeights]).toEqual([
+      expect.closeTo(1),
+      expect.closeTo(0),
+      expect.closeTo(0),
+    ])
 
     control[17] = 0
     processor.port.onmessage?.({
@@ -289,6 +307,40 @@ describe('steamAudioProcessor', () => {
     render()
     expect(processor.directMix).toBeGreaterThan(0)
     expect(processor.directMix).toBeLessThan(1)
+    processor.dispose()
+  })
+
+  it('applies the initial direct mix and spatialization mode without a ramp', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => ProcessorInstance>()
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    }) as ProcessorInstance & { rendererWeights: Float32Array }
+    await waitUntil(() => processor.ready)
+
+    const control = new Float32Array(26)
+    control.set([1, 1, 1, 1, 1, 1, 1, 1, 1])
+    control[11] = -1
+    control[12] = 1
+    control[13] = 1
+    control[15] = 2
+    control[17] = 0
+    processor.port.onmessage?.({
+      data: { type: 'control', values: control },
+    } as MessageEvent)
+
+    const render = () => renderConstantInput(processor)
+    render()
+    const output = render()
+    expect([...processor.rendererWeights]).toEqual([0, 0, 1])
+    expect(output[0].every(value => value === 0)).toBe(true)
+    expect(output[1].every(value => value === 0)).toBe(true)
     processor.dispose()
   })
 
