@@ -89,7 +89,7 @@ export interface DynamicMeshInput extends StaticMeshInput {
 export interface HRTFSettings {
   normalization?: 'none' | 'rms'
   type?: 'default'
-  volumeGainDb?: number
+  volume?: number
 }
 
 export interface Listener {
