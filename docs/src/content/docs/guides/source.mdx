@@ -307,7 +307,8 @@ changed while audio is playing. Use an external `GainNode` for gains above unity
 
 `setDirectOverrides` is useful when your application supplies simulation values
 from another system. Each supplied field replaces only that direct-effect output;
-pass `null` to return to Steam Audio simulation.
+pass `null` to return to Steam Audio simulation. A three-band transmission
+override is rendered as frequency-dependent transmission.
 
 <Tabs syncKey="api">
   <TabItem label="Three.js">

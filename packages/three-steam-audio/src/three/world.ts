@@ -174,7 +174,8 @@ const integer = (name: string, value: number, minimum = 1): number => {
 const unitThreeBand = (name: string, values: readonly number[]): void => {
   if (values.length !== 3)
     throw new RangeError(`${name} must contain exactly three bands`)
-  values.forEach((value, band) => clampUnit(`${name}[${band}]`, value))
+  for (let band = 0; band < 3; band++)
+    clampUnit(`${name}[${band}]`, values[band])
 }
 
 const normalizeQuaternion = (value: QuaternionLike): Quaternion => {
@@ -785,8 +786,9 @@ class SourceImpl implements Source {
         spatializationBlend: spatializationBlend(this.#settings.spatialization),
         spatializationMode: spatializationModeCode(this.#settings.spatialization),
         transmission: overrides?.transmission ?? result.transmission,
-        transmissionType: direct.transmission !== false
-          && direct.transmission.type === 'frequency-dependent'
+        transmissionType: overrides?.transmission !== undefined
+          || (direct.transmission !== false
+            && direct.transmission.type === 'frequency-dependent')
           ? 1
           : 0,
       })
