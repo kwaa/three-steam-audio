@@ -53,6 +53,7 @@ export const SoundSource = ({
       onReady={({ source }) => {
         sourceRef.current = source
       }}
+      perspectiveCorrection
       position={[4, 1.5, -2]}
       ref={ref}
       reflections={{}}

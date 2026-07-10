@@ -99,6 +99,7 @@ export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref
   input?: AudioNode | null
   occlusion?: NonNullable<Exclude<SourceSettings['direct'], false>>['occlusion']
   onReady?: (api: SteamAudioSourceApi) => void
+  perspectiveCorrection?: boolean
   ref?: Ref<Group>
   reflections?: SourceSettings['reflections']
   reflectionsSend?: number
@@ -140,6 +141,7 @@ export const mergeSourceSettings = (
     | 'directMixLevel'
     | 'distanceAttenuation'
     | 'occlusion'
+    | 'perspectiveCorrection'
     | 'reflections'
     | 'spatialization'
     | 'transmission'
@@ -172,6 +174,7 @@ export const mergeSourceSettings = (
   return {
     ...settings,
     direct,
+    perspectiveCorrection: props.perspectiveCorrection ?? settings?.perspectiveCorrection,
     reflections: props.reflections ?? settings?.reflections,
     spatialization: props.spatialization
       ? {
@@ -193,6 +196,7 @@ export const SteamAudioSource = ({
   input,
   occlusion,
   onReady,
+  perspectiveCorrection,
   ref,
   reflections,
   reflectionsSend,
@@ -212,10 +216,11 @@ export const SteamAudioSource = ({
     directMixLevel,
     distanceAttenuation,
     occlusion,
+    perspectiveCorrection,
     reflections,
     spatialization,
     transmission,
-  }), [airAbsorption, direct, directMixLevel, directivity, distanceAttenuation, occlusion, reflections, settings, spatialization, transmission])
+  }), [airAbsorption, direct, directMixLevel, directivity, distanceAttenuation, occlusion, perspectiveCorrection, reflections, settings, spatialization, transmission])
   const api = useSteamAudioSource(groupRef, mergedSettings)
 
   useEffect(() => {

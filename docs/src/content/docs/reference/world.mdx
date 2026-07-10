@@ -40,6 +40,12 @@ Creates and initializes a world. This function loads the Steam Audio WASM module
 `occlusionQuality`
 : Preset that affects `direct.maxOcclusionSamples`. One of `'low'`, `'medium'`, `'high'`. Default: `'medium'`.
 
+`perspectiveCorrection`
+: Optional desktop-screen spatialization settings. This follows Steam Audio's Unity integration: it changes only the rendered direction of sources that opt in; direct simulation, distance attenuation, occlusion, and reflections continue to use world-space coordinates.
+  - `enabled` — enables correction globally. Default: `false`.
+  - `factor` — screen-size calibration factor. Must be finite and at least `0`. Default: `1`.
+  - `applyInXR` — enables correction for an XR array camera. Default: `false`; desktop correction is normally disabled in XR.
+
 `reflections`
 : `false` to disable reflections, or an object with upper bounds:
   - `maxRays` — default `4096`
@@ -97,6 +103,14 @@ world.createReverbBus(settings?: ReverbBusSettings): ReverbBusNode
 ```
 
 Creates a bus for rendering listener reverb. Requires reflections to be enabled for the world.
+
+### `setPerspectiveCorrection(settings)`
+
+```ts
+world.setPerspectiveCorrection(settings: false | PerspectiveCorrectionSettings): void
+```
+
+Enables, disables, or replaces the runtime perspective-correction settings. It republishes rendering controls only; it does not change acoustic simulation.
 
 ### `setReflectionSettings(settings)`
 

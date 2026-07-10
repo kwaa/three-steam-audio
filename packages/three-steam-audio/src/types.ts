@@ -1,4 +1,4 @@
-import type { BufferGeometry, Matrix4 } from 'three'
+import type { BufferGeometry, Camera, Matrix4 } from 'three'
 
 export interface AcousticMaterial {
   absorption: ThreeBand
@@ -101,6 +101,11 @@ export type HRTFSettings
   }
 
 export interface Listener {
+  /**
+   * Sets the render camera used for perspective-corrected spatialization.
+   * Call this after updating the camera projection or world matrix.
+   */
+  setCamera: (camera: Camera | null) => void
   setOrientation: (orientation: QuaternionLike) => void
   setPosition: (position: Vector3Like) => void
   setReverb: (settings: false | ReverbSettings) => void
@@ -113,6 +118,16 @@ export interface OcclusionSettings {
   radius?: number
   samples?: number
   type?: 'raycast' | 'volumetric'
+}
+
+/** World-level settings matching Steam Audio's perspective-correction state. */
+export interface PerspectiveCorrectionSettings {
+  /** Apply correction to an XR array camera. Default: false. */
+  applyInXR?: boolean
+  /** Enables perspective correction for sources that opt in. Default: false. */
+  enabled?: boolean
+  /** Screen-size calibration factor. Must be finite and non-negative. Default: 1. */
+  factor?: number
 }
 
 export interface QuaternionLike {
@@ -167,6 +182,8 @@ export interface Source {
 
 export interface SourceSettings {
   direct?: DirectSettings | false
+  /** Opt this source into the World's perspective-correction setting. */
+  perspectiveCorrection?: boolean
   reflections?: false | ReflectionSettings
   spatialization?: SpatializationSettings
 }
@@ -225,6 +242,7 @@ export interface WorldOptions {
   maxSources?: number
   moduleFactory?: SteamAudioModuleFactory
   occlusionQuality?: OcclusionQualityPreset
+  perspectiveCorrection?: PerspectiveCorrectionSettings
   reflections?: false | {
     diffuseSamples?: number
     initial?: ReflectionSimulationSettings

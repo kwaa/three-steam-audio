@@ -61,4 +61,10 @@ describe('steamAudioSource settings merge', () => {
       mode: 'binaural',
     })
   })
+
+  it('uses the perspectiveCorrection prop as the source opt-in', () => {
+    expect(mergeSourceSettings({ perspectiveCorrection: false }, {
+      perspectiveCorrection: true,
+    })).toMatchObject({ perspectiveCorrection: true })
+  })
 })

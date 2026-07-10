@@ -86,7 +86,7 @@ export const App = () => {
                 },
               }}
             >
-              <SteamAudioListener />
+              <SteamAudioListener perspectiveCorrection />
               <SteamAudioEnvironment
                 destination={roomGain}
                 reflections={{ wet: 1 }}

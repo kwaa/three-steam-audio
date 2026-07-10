@@ -1,4 +1,4 @@
-import type { Matrix4 } from 'three'
+import type { Camera, Matrix4 } from 'three'
 
 import type {
   AcousticMeshHandle,
@@ -13,6 +13,7 @@ import type {
   HRTFSettings,
   Listener,
   OcclusionSettings,
+  PerspectiveCorrectionSettings,
   QuaternionLike,
   ReflectionBusSettings,
   ReflectionSettings,
@@ -75,6 +76,8 @@ const QUALITY_MAX_OCCLUSION_SAMPLES = {
 const ahead = new Vector3()
 const up = new Vector3()
 const orientationScratch = new Quaternion()
+const perspectiveMatrix = new ThreeMatrix4()
+const perspectiveDirection = new Vector3()
 
 export interface NormalizedReflectionSimulationSettings {
   bounces: number
@@ -101,6 +104,12 @@ interface NormalizedHRTFSettings {
   volume: number
 }
 
+interface NormalizedPerspectiveCorrectionSettings {
+  applyInXR: boolean
+  enabled: boolean
+  factor: number
+}
+
 const sofaCacheKeyCounter = { value: 1 }
 
 interface NormalizedSourceSettings {
@@ -117,6 +126,7 @@ interface NormalizedSourceSettings {
       type: 'frequency-dependent' | 'frequency-independent'
     }
   }
+  perspectiveCorrection: boolean
   reflections: Required<Pick<ReflectionSettings, 'mixLevel' | 'reverbScale'>> & {
     enabled: boolean
   }
@@ -147,6 +157,20 @@ const gain = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value < 0)
     throw new RangeError(`${name} must be a finite number >= 0`)
   return value
+}
+
+const normalizePerspectiveCorrectionSettings = (
+  settings: PerspectiveCorrectionSettings | undefined,
+): NormalizedPerspectiveCorrectionSettings => {
+  if (settings?.enabled !== undefined && typeof settings.enabled !== 'boolean')
+    throw new TypeError('perspectiveCorrection.enabled must be a boolean')
+  if (settings?.applyInXR !== undefined && typeof settings.applyInXR !== 'boolean')
+    throw new TypeError('perspectiveCorrection.applyInXR must be a boolean')
+  return {
+    applyInXR: settings?.applyInXR ?? false,
+    enabled: settings?.enabled ?? false,
+    factor: gain('perspectiveCorrection.factor', settings?.factor ?? 1),
+  }
 }
 
 const normalizeHRTFSettings = (
@@ -347,8 +371,13 @@ const normalizeSettings = (
   settings: SourceSettings = {},
   maximumOcclusionSamples = DEFAULT_MAX_OCCLUSION_SAMPLES,
 ): NormalizedSourceSettings => {
+  if (settings.perspectiveCorrection !== undefined
+    && typeof settings.perspectiveCorrection !== 'boolean') {
+    throw new TypeError('perspectiveCorrection must be a boolean')
+  }
   return {
     direct: normalizeDirectSettings(settings.direct, maximumOcclusionSamples),
+    perspectiveCorrection: settings.perspectiveCorrection ?? false,
     reflections: normalizeReflectionSettings(settings.reflections),
     spatialization: normalizeSpatializationSettings(settings.spatialization),
   }
@@ -470,6 +499,7 @@ export type World = Pick<
   | 'dispose'
   | 'listener'
   | 'scene'
+  | 'setPerspectiveCorrection'
   | 'setReflectionSettings'
   | 'step'
 >
@@ -646,6 +676,10 @@ class ListenerImpl implements Listener {
     this.#world = world
   }
 
+  setCamera(camera: Camera | null): void {
+    this.#world.setPerspectiveCorrectionCamera(camera)
+  }
+
   setOrientation(orientation: QuaternionLike): void {
     this.setTransform(this.position, orientation)
   }
@@ -782,7 +816,10 @@ class SourceImpl implements Source {
     const direct = this.#settings.direct
     const overrides = this.#overrides
     const result = this.#outputs
-    const direction = this.#position.clone().sub(this.#world.listenerImpl.position)
+    const direction = this.#world.getPerspectiveCorrectedDirection(
+      this.#position,
+      this.#settings.perspectiveCorrection,
+    ) ?? this.#position.clone().sub(this.#world.listenerImpl.position)
     if (direction.lengthSq() < 1e-12)
       direction.set(0, 0, -1)
     else
@@ -894,6 +931,7 @@ class SourceImpl implements Source {
     this.assertActive('Source.setSettings')
     const current: SourceSettings = {
       direct: this.#settings.direct,
+      perspectiveCorrection: this.#settings.perspectiveCorrection,
       reflections: this.#settings.reflections.enabled
         ? {
             mixLevel: this.#settings.reflections.mixLevel,
@@ -1040,6 +1078,8 @@ export class WorldImpl {
   #disposed = false
   #listenerReverbSource?: SourceImpl
   #nextSourceId = 1
+  #perspectiveCamera?: Camera
+  #perspectiveCorrection: NormalizedPerspectiveCorrectionSettings
   #reflectionAccumulator = 0
   readonly #reflectionBuses = new Set<ReflectionBusNode>()
   readonly #reflectionInterval: number
@@ -1054,6 +1094,9 @@ export class WorldImpl {
     this.#wasmBinary = runtime.wasmBinary
     this.frameSize = integer('frameSize', options.frameSize ?? DEFAULT_FRAME_SIZE)
     this.hrtf = normalizeHRTFSettings(options.hrtf)
+    this.#perspectiveCorrection = normalizePerspectiveCorrectionSettings(
+      options.perspectiveCorrection,
+    )
     this.maxSources = integer('maxSources', options.maxSources ?? DEFAULT_MAX_SOURCES)
     this.maxOcclusionSamples = integer(
       'direct.maxOcclusionSamples',
@@ -1245,6 +1288,43 @@ export class WorldImpl {
     this.module._sa_context_release(this.context)
   }
 
+  getPerspectiveCorrectedDirection(
+    position: Vector3,
+    enabledForSource: boolean,
+  ): undefined | Vector3 {
+    const camera = this.#perspectiveCamera
+    if (!enabledForSource || !this.#perspectiveCorrection.enabled || !camera)
+      return undefined
+    const arrayCamera = camera as Camera & { cameras?: Camera[], isArrayCamera?: boolean }
+    if (!this.#perspectiveCorrection.applyInXR && arrayCamera.isArrayCamera)
+      return undefined
+    const projectionCamera = arrayCamera.isArrayCamera
+      ? arrayCamera.cameras?.[0]
+      : camera
+    if (!projectionCamera)
+      return undefined
+    const aspect = (projectionCamera as Camera & { aspect?: number }).aspect
+    if (!Number.isFinite(aspect) || aspect === undefined || aspect <= 0)
+      return undefined
+    perspectiveMatrix.multiplyMatrices(
+      projectionCamera.projectionMatrix,
+      projectionCamera.matrixWorldInverse,
+    )
+    const elements = perspectiveMatrix.elements
+    const { x, y, z } = position
+    const projectedX = elements[0] * x + elements[4] * y + elements[8] * z + elements[12]
+    const projectedY = elements[1] * x + elements[5] * y + elements[9] * z + elements[13]
+    const projectedZ = elements[2] * x + elements[6] * y + elements[10] * z + elements[14]
+    const projectedW = elements[3] * x + elements[7] * y + elements[11] * z + elements[15]
+    if (!Number.isFinite(projectedW) || Math.abs(projectedW) <= 1e-6)
+      return undefined
+    return perspectiveDirection.set(
+      0.5 * projectedX * this.#perspectiveCorrection.factor / Math.abs(projectedW),
+      0.5 * projectedY * this.#perspectiveCorrection.factor / aspect / Math.abs(projectedW),
+      -projectedZ / Math.abs(projectedW),
+    )
+  }
+
   publishSourceControls(): void {
     for (const source of this.#sources)
       source.publishControl()
@@ -1282,6 +1362,20 @@ export class WorldImpl {
     this.syncListenerReverbSource()
     for (const source of this.#sources)
       source.publishControl()
+  }
+
+  setPerspectiveCorrection(settings: false | PerspectiveCorrectionSettings): void {
+    this.assertActive('World.setPerspectiveCorrection')
+    this.#perspectiveCorrection = normalizePerspectiveCorrectionSettings(
+      settings === false ? { enabled: false } : settings,
+    )
+    this.publishSourceControls()
+  }
+
+  setPerspectiveCorrectionCamera(camera: Camera | null): void {
+    this.assertActive('Listener.setCamera')
+    this.#perspectiveCamera = camera ?? undefined
+    this.publishSourceControls()
   }
 
   setReflectionSettings(settings: ReflectionSimulationSettings): void {

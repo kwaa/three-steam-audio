@@ -19,7 +19,7 @@ import {
   useMemo,
   useRef,
 } from 'react'
-import { Quaternion, Vector3 } from 'three'
+import { Camera, Quaternion, Vector3 } from 'three'
 
 import { createWorldFromRuntime } from '../three/world'
 import { defaultModuleFactory, getPreparedRuntimePromise } from '../worker/runtime'
@@ -106,28 +106,31 @@ const SteamAudioProvider = ({
     listenerCountRef.current += mounted ? 1 : -1
   }, [])
 
+  const syncListener = (state: RootState): void => {
+    const object = listenerObjectRef.current
+    if (object && !object.current) {
+      if (!warnedRef.current) {
+        warnedRef.current = true
+        console.warn('SteamAudioListener object ref is null; retaining the last listener transform')
+      }
+      return
+    }
+    const target = state.gl.xr.isPresenting
+      ? state.gl.xr.getCamera()
+      : object?.current ?? state.camera
+    target.getWorldPosition(listenerPosition)
+    target.getWorldQuaternion(listenerOrientation)
+    world.listener.setCamera(target instanceof Camera ? target : null)
+    world.listener.setTransform(listenerPosition, listenerOrientation)
+  }
+
   useFrame((state, delta) => {
     if (paused)
       return
     state.scene.updateWorldMatrix(true, true)
 
-    if (listenerCountRef.current > 0) {
-      const object = listenerObjectRef.current
-      let target = object?.current ?? state.camera
-      if (object && !object.current) {
-        if (!warnedRef.current) {
-          warnedRef.current = true
-          console.warn('SteamAudioListener object ref is null; retaining the last listener transform')
-        }
-      }
-      else {
-        if (state.gl.xr.isPresenting)
-          target = state.gl.xr.getCamera()
-        target.getWorldPosition(listenerPosition)
-        target.getWorldQuaternion(listenerOrientation)
-        world.listener.setTransform(listenerPosition, listenerOrientation)
-      }
-    }
+    if (listenerCountRef.current > 0)
+      syncListener(state)
 
     for (const synchronizer of synchronizersRef.current.dynamic) synchronizer(state)
     for (const synchronizer of synchronizersRef.current.source) synchronizer(state)
