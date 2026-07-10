@@ -5,6 +5,7 @@ import type { Group, Object3D } from 'three'
 
 import type { World } from '../three/world'
 import type {
+  DirectOverrides,
   Source,
   SourceSettings,
 } from '../types'
@@ -88,10 +89,13 @@ export interface SteamAudioSourceApi {
 }
 
 export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref'> {
-  airAbsorption?: SourceSettings['direct'] extends false ? never : boolean
+  airAbsorption?: SourceDirectSettings['airAbsorption']
   destination?: AudioNode | null
   direct?: SourceSettings['direct']
   directivity?: SourceSettings['direct'] extends false ? never : NonNullable<Exclude<SourceSettings['direct'], false>>['directivity']
+  directMixLevel?: SourceDirectSettings['mixLevel']
+  directOverrides?: DirectOverrides | null
+  distanceAttenuation?: SourceDirectSettings['distanceAttenuation']
   input?: AudioNode | null
   occlusion?: NonNullable<Exclude<SourceSettings['direct'], false>>['occlusion']
   onReady?: (api: SteamAudioSourceApi) => void
@@ -101,7 +105,7 @@ export interface SteamAudioSourceProps extends Omit<ThreeElements['group'], 'ref
   reverbSend?: number
   settings?: SourceSettings
   spatialization?: SourceSettings['spatialization']
-  transmission?: 'frequency-dependent' | 'frequency-independent' | boolean
+  transmission?: 'frequency-dependent' | 'frequency-independent' | boolean | SourceDirectSettings['transmission']
 }
 
 type SourceDirectSettings = Exclude<NonNullable<SourceSettings['direct']>, false>
@@ -118,6 +122,8 @@ const transmissionSetting = (
     return fallback
   if (transmission === false)
     return false
+  if (typeof transmission === 'object')
+    return transmission
   return {
     type: transmission === true ? 'frequency-independent' : transmission,
   }
@@ -131,6 +137,8 @@ export const mergeSourceSettings = (
     | 'airAbsorption'
     | 'direct'
     | 'directivity'
+    | 'directMixLevel'
+    | 'distanceAttenuation'
     | 'occlusion'
     | 'reflections'
     | 'spatialization'
@@ -141,6 +149,8 @@ export const mergeSourceSettings = (
   const propDirect = directObject(props.direct)
   const hasDirectProps = props.airAbsorption !== undefined
     || props.directivity !== undefined
+    || props.distanceAttenuation !== undefined
+    || props.directMixLevel !== undefined
     || props.occlusion !== undefined
     || props.transmission !== undefined
   const direct = props.direct === false
@@ -151,6 +161,8 @@ export const mergeSourceSettings = (
         ...propDirect,
         airAbsorption: props.airAbsorption ?? propDirect.airAbsorption ?? settingsDirect.airAbsorption,
         directivity: props.directivity ?? propDirect.directivity ?? settingsDirect.directivity,
+        distanceAttenuation: props.distanceAttenuation ?? propDirect.distanceAttenuation ?? settingsDirect.distanceAttenuation,
+        mixLevel: props.directMixLevel ?? propDirect.mixLevel ?? settingsDirect.mixLevel,
         occlusion: props.occlusion ?? propDirect.occlusion ?? settingsDirect.occlusion,
         transmission: transmissionSetting(
           props.transmission,
@@ -175,6 +187,9 @@ export const SteamAudioSource = ({
   destination,
   direct,
   directivity,
+  directMixLevel,
+  directOverrides,
+  distanceAttenuation,
   input,
   occlusion,
   onReady,
@@ -194,12 +209,18 @@ export const SteamAudioSource = ({
     airAbsorption,
     direct,
     directivity,
+    directMixLevel,
+    distanceAttenuation,
     occlusion,
     reflections,
     spatialization,
     transmission,
-  }), [airAbsorption, direct, directivity, occlusion, reflections, settings, spatialization, transmission])
+  }), [airAbsorption, direct, directMixLevel, directivity, distanceAttenuation, occlusion, reflections, settings, spatialization, transmission])
   const api = useSteamAudioSource(groupRef, mergedSettings)
+
+  useEffect(() => {
+    api.source.setDirectOverrides(directOverrides ?? null)
+  }, [api.source, directOverrides])
 
   const setGroupRef = useCallback((group: Group | null) => {
     groupRef.current = group

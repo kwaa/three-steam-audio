@@ -171,6 +171,12 @@ const integer = (name: string, value: number, minimum = 1): number => {
   return value
 }
 
+const unitThreeBand = (name: string, values: readonly number[]): void => {
+  if (values.length !== 3)
+    throw new RangeError(`${name} must contain exactly three bands`)
+  values.forEach((value, band) => clampUnit(`${name}[${band}]`, value))
+}
+
 const normalizeQuaternion = (value: QuaternionLike): Quaternion => {
   orientationScratch.set(value.x, value.y, value.z, value.w)
   if (orientationScratch.lengthSq() < 1e-12)
@@ -837,8 +843,10 @@ class SourceImpl implements Source {
         clampUnit('overrides.directivity', overrides.directivity)
       if (overrides.occlusion !== undefined)
         clampUnit('overrides.occlusion', overrides.occlusion)
-      overrides.airAbsorption?.forEach((value, band) => clampUnit(`overrides.airAbsorption[${band}]`, value))
-      overrides.transmission?.forEach((value, band) => clampUnit(`overrides.transmission[${band}]`, value))
+      if (overrides.airAbsorption)
+        unitThreeBand('overrides.airAbsorption', overrides.airAbsorption)
+      if (overrides.transmission)
+        unitThreeBand('overrides.transmission', overrides.transmission)
     }
     this.#overrides = overrides
     this.publishControl()

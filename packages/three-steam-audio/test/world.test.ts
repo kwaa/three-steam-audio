@@ -208,6 +208,9 @@ describe('world', () => {
     source.setDirectOverrides({ transmission: [0.2, 0.3, 0.4] })
     const control = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
     expect(control.values[13] & 0b10000).toBe(0b10000)
+    expect(() => source.setDirectOverrides({
+      airAbsorption: [0.2, 0.3] as unknown as [number, number, number],
+    })).toThrow(/exactly three bands/)
     expect(() => world.createSource()).toThrow(/maxSources/)
     source.dispose()
     world.dispose()
