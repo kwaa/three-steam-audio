@@ -21,6 +21,7 @@ const runtimeCache = new WeakMap<
 
 const wasmUrl = new URL('./bindings/phonon_bindings.wasm', import.meta.url)
 const workletUrl = new URL('./steam-audio-processor.js', import.meta.url)
+const ambisonicWorkletUrl = new URL('./steam-audio-ambisonic-processor.js', import.meta.url)
 
 export const detectCapabilities = (): SteamAudioCapabilities => {
   const isolated = globalThis.crossOriginIsolated === true
@@ -54,6 +55,7 @@ const prepareRuntime = async (
       wasmBinary,
     }) as Promise<NativeModule>,
     audioContext.audioWorklet.addModule(workletUrl),
+    audioContext.audioWorklet.addModule(ambisonicWorkletUrl),
   ])
 
   return { module, wasmBinary }

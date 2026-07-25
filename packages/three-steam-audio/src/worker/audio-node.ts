@@ -1,4 +1,5 @@
 import type {
+  AmbisonicSource,
   ReflectionBusSettings,
   ReflectionConnection,
   ReverbBusSettings,
@@ -9,6 +10,22 @@ import type {
 import { SteamAudioError } from '../three/errors'
 
 const CONTROL_VALUE_COUNT = 26
+const AMBISONIC_CONTROL_VALUE_COUNT = 10
+
+export interface AmbisonicNodeControlValues {
+  binaural: boolean
+  orientation: readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ]
+}
 
 export interface NodeControlValues {
   airAbsorption: readonly [number, number, number]
@@ -34,6 +51,20 @@ export type SteamAudioNodeState
     | 'failed'
     | 'initializing'
     | 'ready'
+
+interface AmbisonicNodeOptions {
+  frameSize: number
+  hrtf: {
+    cacheKey: string
+    data?: ArrayBuffer
+    normalization: 'none' | 'rms'
+    type: 'default' | 'sofa'
+    volume: number
+  }
+  onDispose: (node: SteamAudioAmbisonicNode) => void
+  source: AmbisonicSource
+  wasmBinary: ArrayBuffer
+}
 
 interface NodeOptions {
   frameSize: number
@@ -136,6 +167,118 @@ export class ReverbBusNode extends SteamAudioBusNode {
   }
 }
 
+export class SteamAudioAmbisonicNode extends AudioWorkletNodeBase {
+  readonly ready: Promise<void>
+  readonly source: AmbisonicSource
+  get error(): Error | undefined {
+    return this.#error
+  }
+
+  get state(): SteamAudioNodeState {
+    return this.#state
+  }
+
+  readonly #controlData?: Float32Array
+  readonly #controlSequence?: Int32Array
+  #disposed = false
+  #error?: Error
+  readonly #onDispose: (node: SteamAudioAmbisonicNode) => void
+  #rejectReady!: (reason: Error) => void
+  #resolveReady!: () => void
+  #state: SteamAudioNodeState = 'initializing'
+
+  constructor(context: AudioContext, options: AmbisonicNodeOptions) {
+    const useSharedMemory = globalThis.crossOriginIsolated === true
+      && typeof SharedArrayBuffer !== 'undefined'
+    const controlBuffer = useSharedMemory
+      ? new SharedArrayBuffer(4 + AMBISONIC_CONTROL_VALUE_COUNT * 4)
+      : undefined
+    super(context, 'steam-audio-ambisonic-processor', {
+      channelCount: 4,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'discrete',
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [2],
+      processorOptions: {
+        controlBuffer,
+        frameSize: options.frameSize,
+        hrtf: options.hrtf,
+        wasmBinary: options.wasmBinary,
+      },
+    })
+    this.source = options.source
+    this.#onDispose = options.onDispose
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.#resolveReady = resolve
+      this.#rejectReady = reject
+    })
+    // eslint-disable-next-line sonarjs/no-async-constructor
+    void this.ready.catch(() => {})
+    this.port.onmessage = ({ data }: MessageEvent<{ message?: unknown, type: string }>) => {
+      if (data.type === 'ready') {
+        if (this.#state !== 'initializing')
+          return
+        this.#state = 'ready'
+        this.#resolveReady()
+        return
+      }
+      if (data.type === 'error')
+        this.#fail(String(data.message))
+    }
+    const eventTarget = this as unknown as {
+      addEventListener?: (type: string, listener: () => void) => void
+    }
+    eventTarget.addEventListener?.('processorerror', () => {
+      this.#fail('AudioWorklet processor crashed')
+    })
+    if (controlBuffer) {
+      this.#controlSequence = new Int32Array(controlBuffer, 0, 1)
+      this.#controlData = new Float32Array(controlBuffer, 4, AMBISONIC_CONTROL_VALUE_COUNT)
+    }
+  }
+
+  dispose(): void {
+    if (this.#disposed)
+      return
+    this.#disposed = true
+    if (this.#state === 'initializing') {
+      this.#error = new SteamAudioError(
+        'AudioWorklet.initialize',
+        'node was disposed before initialization completed',
+      )
+      this.#rejectReady(this.#error)
+    }
+    this.#state = 'disposed'
+    disposeWorkletNode(this, () => this.#onDispose(this))
+  }
+
+  setControl(values: AmbisonicNodeControlValues): void {
+    if (this.#disposed)
+      return
+    const packet = new Float32Array(AMBISONIC_CONTROL_VALUE_COUNT)
+    packet[0] = values.binaural ? 1 : 0
+    packet.set(values.orientation, 1)
+    if (this.#controlData && this.#controlSequence) {
+      Atomics.add(this.#controlSequence, 0, 1)
+      this.#controlData.set(packet)
+      Atomics.add(this.#controlSequence, 0, 1)
+    }
+    else {
+      this.port.postMessage({ type: 'control', values: packet }, [packet.buffer])
+    }
+  }
+
+  #fail(message: string): void {
+    if (this.#state === 'disposed' || this.#state === 'failed')
+      return
+    this.#error = new SteamAudioError('AudioWorklet.initialize', message)
+    if (this.#state === 'initializing')
+      this.#rejectReady(this.#error)
+    this.#state = 'failed'
+  }
+}
+
 export class SteamAudioNode extends AudioWorkletNodeBase {
   readonly ready: Promise<void>
   readonly source: Source
@@ -223,6 +366,7 @@ export class SteamAudioNode extends AudioWorkletNodeBase {
     return this.#connectSend(bus, 2, options.gain ?? 1)
   }
 
+  // eslint-disable-next-line sonarjs/no-identical-functions
   dispose(): void {
     if (this.#disposed)
       return

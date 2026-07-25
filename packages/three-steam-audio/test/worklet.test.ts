@@ -7,6 +7,18 @@ import createSteamAudioModule from '../dist/bindings/phonon_bindings.js'
 import { getRegisteredProcessor } from './helpers/audio-worklet.ts'
 
 import '../dist/steam-audio-processor.js'
+import '../dist/steam-audio-ambisonic-processor.js'
+
+interface AmbisonicProcessorInstance {
+  dispose: () => void
+  failed: boolean
+  port: {
+    messages: unknown[]
+    onmessage?: (event: MessageEvent) => void
+  }
+  process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
+  ready: boolean
+}
 
 interface BusProcessorInstance {
   port: {
@@ -61,6 +73,58 @@ describe('steamAudioProcessor', () => {
       Atomics,
       SharedArrayBuffer,
     })
+  })
+
+  it('decodes first-order four-channel Ambisonics to stereo', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    const input = Array.from({ length: 4 }, () => new Float32Array(128).fill(0.25))
+    const first = [new Float32Array(128), new Float32Array(128)]
+    const second = [new Float32Array(128), new Float32Array(128)]
+    expect(processor.process([input], [first])).toBe(true)
+    expect(first[0].every(value => value === 0)).toBe(true)
+    expect(processor.process([input], [second])).toBe(true)
+    expect(second[0].every(Number.isFinite)).toBe(true)
+    expect(second[1].every(Number.isFinite)).toBe(true)
+
+    processor.dispose()
+    expect(processor.process([input], [second])).toBe(false)
+  })
+
+  it('fails when an input does not contain four discrete channels', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 256,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    const input = [new Float32Array(128), new Float32Array(128)]
+    const output = [new Float32Array(128), new Float32Array(128)]
+    processor.process([input], [output])
+    expect(processor.failed).toBe(true)
+    expect(processor.port.messages).toContainEqual({
+      message: 'Ambisonic input must have exactly 4 channels',
+      type: 'error',
+    })
+    expect(output[0].every(value => value === 0)).toBe(true)
   })
 
   it('initializes the real worklet WASM runtime and adapts 128-frame render quanta', async () => {

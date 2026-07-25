@@ -4,7 +4,7 @@ sidebar:
   order: 1
 ---
 
-A `World` is created by [`createWorld()`](#createworldoptions) and is the factory for sources, audio nodes, reflection buses, and reverb buses. It also owns the acoustic [`scene`](/reference/scene/) and the [`listener`](/reference/listener/).
+A `World` is created by [`createWorld()`](#createworldoptions) and is the factory for point sources, Ambisonic sources, audio nodes, reflection buses, and reverb buses. It also owns the acoustic [`scene`](/reference/scene/) and the [`listener`](/reference/listener/).
 
 ## `createWorld(options)`
 
@@ -87,6 +87,22 @@ world.createNode(source: Source): SteamAudioNode
 ```
 
 Creates an AudioWorklet node for the given source. The source must have been created by this world.
+
+### `createAmbisonicSource(settings?)`
+
+```ts
+world.createAmbisonicSource(settings?: AmbisonicSourceSettings): AmbisonicSource
+```
+
+Creates an independent Unity-compatible Ambisonic source. It does not consume `maxSources`. See [`AmbisonicSource`](/reference/ambisonic-source/).
+
+### `createAmbisonicNode(source)`
+
+```ts
+world.createAmbisonicNode(source: AmbisonicSource): SteamAudioAmbisonicNode
+```
+
+Creates the stereo AudioWorklet decoder for an Ambisonic source.
 
 ### `createReflectionBus(settings?)`
 

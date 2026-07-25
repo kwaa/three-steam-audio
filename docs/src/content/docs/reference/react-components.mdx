@@ -56,6 +56,35 @@ Synchronizes the R3F camera (or a custom object) to `world.listener`.
 `perspectiveCorrection`
 : `boolean | { factor?: number, applyInXR?: boolean }` — enables or configures the World's desktop perspective correction. Sources still opt in through `<SteamAudioSource perspectiveCorrection />` or `SourceSettings`.
 
+## `<SteamAudioAmbisonicSource>`
+
+Declarative Unity-compatible Ambisonic decoder. The wrapped group orientation is synchronized to the Ambisonic source each frame.
+
+### Props
+
+`input`
+: `AudioNode | null` — a four-channel first-order AmbiX input.
+
+`destination`
+: `AudioNode | null` — where the stereo output is connected. Defaults to `world.audioContext.destination`.
+
+`binaural`
+: `boolean` — enables HRTF rendering. Defaults to `true`.
+
+`settings`
+: `AmbisonicSourceSettings` — the imperative source settings.
+
+`onReady`
+: `(api: SteamAudioAmbisonicSourceApi) => void` — called when the source group is mounted.
+
+## `useSteamAudioAmbisonicSource(object, settings?)`
+
+Lower-level hook that creates an Ambisonic source and decoder tied to an `Object3D` ref.
+
+```ts
+const { node, source } = useSteamAudioAmbisonicSource(objectRef)
+```
+
 ## `<SteamAudioEnvironment>`
 
 Creates optional reflection and reverb buses and wires them to a destination.

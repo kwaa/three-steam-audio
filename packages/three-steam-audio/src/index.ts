@@ -7,6 +7,8 @@ export type {
   AcousticMeshHandle,
   AcousticScene,
   AirAbsorptionSettings,
+  AmbisonicSource,
+  AmbisonicSourceSettings,
   DirectivitySettings,
   DirectOutputs,
   DirectOverrides,
@@ -42,6 +44,7 @@ export type {
 export {
   ReflectionBusNode,
   ReverbBusNode,
+  SteamAudioAmbisonicNode,
   SteamAudioNode,
 } from './worker/audio-node'
 export type { SteamAudioNodeState } from './worker/audio-node'

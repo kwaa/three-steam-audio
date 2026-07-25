@@ -1,0 +1,56 @@
+---
+title: Ambisonic Source
+sidebar:
+  order: 3
+---
+
+An `AmbisonicSource` renders an already encoded first-order Ambisonic sound field. It matches Steam Audio's Unity Ambisonic Source behavior: the input is AmbiX (ACN/SN3D), the source orientation rotates the sound field, and the output is stereo.
+
+Ambisonic sources are independent of point sources. They do not use position, distance attenuation, occlusion, reflections, reverb, or `WorldOptions.maxSources`.
+
+## Creating an Ambisonic source
+
+```ts
+const source = world.createAmbisonicSource({
+  binaural: true,
+})
+const node = world.createAmbisonicNode(source)
+
+ambisonicInput.connect(node)
+node.connect(world.audioContext.destination)
+```
+
+The input must contain exactly four discrete channels: first-order AmbiX using ACN channel ordering and SN3D normalization. The node uses `channelCountMode: 'explicit'` and `channelInterpretation: 'discrete'` to preserve the Ambisonic channels.
+
+### `setOrientation(orientation)`
+
+```ts
+source.setOrientation(object.quaternion)
+```
+
+Sets the orientation of the sound field. The source position is intentionally not part of this interface. The listener orientation comes from `world.listener`.
+
+### `setBinaural(enabled)`
+
+```ts
+source.setBinaural(false)
+```
+
+Enables or disables HRTF-based rendering. It defaults to `true`. When disabled, Steam Audio still decodes the Ambisonic field to the stereo speaker layout; it does not pass the four input channels through unchanged.
+
+### `dispose()`
+
+Releases the source and all nodes created for it.
+
+## `SteamAudioAmbisonicNode`
+
+`SteamAudioAmbisonicNode` is created by `world.createAmbisonicNode(source)`. It is a standard Web Audio `AudioNode` with one input and one stereo output.
+
+It exposes the same lifecycle properties as `SteamAudioNode`:
+
+- `ready: Promise<void>`
+- `state: 'initializing' | 'ready' | 'failed' | 'disposed'`
+- `error: Error | undefined`
+- `dispose(): void`
+
+An input with any channel count other than four causes the node to enter the `failed` state and emit silence.
