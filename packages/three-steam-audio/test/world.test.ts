@@ -59,6 +59,7 @@ const createNativeModule = () => {
   }
 
   const creates = new Set([
+    '_sa_ambisonic_decode_effect_create',
     '_sa_context_create',
     '_sa_instanced_mesh_create',
     '_sa_scene_create',
@@ -132,7 +133,7 @@ describe('world', () => {
       moduleFactory,
     })
     expect(factoryCalls).toBe(1)
-    expect(audio.modules.length).toBe(1)
+    expect(audio.modules.length).toBe(2)
 
     const source = first.createSource({
       direct: {
@@ -166,6 +167,40 @@ describe('world', () => {
     first.dispose()
     expect(() => first.step(0)).toThrow(/World has been disposed/)
     second.dispose()
+  })
+
+  it('creates independent ambisonic sources without consuming point-source capacity', async () => {
+    const native = createNativeModule()
+    const audio = createAudioContext()
+    const world = await createWorld({
+      audioContext: audio.context,
+      maxSources: 1,
+      moduleFactory: async () => native.module,
+    })
+
+    world.createSource()
+    const source = world.createAmbisonicSource({ binaural: false })
+    const node = world.createAmbisonicNode(source)
+    const options = (node as unknown as { options: { channelCount: number, channelCountMode: string, channelInterpretation: string, outputChannelCount: number[] } }).options
+    expect(options).toMatchObject({
+      channelCount: 4,
+      channelCountMode: 'explicit',
+      channelInterpretation: 'discrete',
+      outputChannelCount: [2],
+    })
+
+    const firstControl = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
+    expect(firstControl.values[0]).toBe(0)
+    expect([...firstControl.values.slice(1)].map(value => value === 0 ? 0 : value))
+      .toEqual([0, 0, 1, 0, 1, 0, -1, 0, 0])
+
+    source.setBinaural(true)
+    const secondControl = ((node.port as unknown) as FakePort).messages.at(-1) as { values: Float32Array }
+    expect(secondControl.values[0]).toBe(1)
+
+    source.dispose()
+    expect(((node.port as unknown) as FakePort).closed).toBe(true)
+    world.dispose()
   })
 
   it('validates source capacity and transmission requirements at the JS boundary', async () => {

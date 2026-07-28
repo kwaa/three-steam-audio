@@ -81,8 +81,13 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
     output: Float32Array[],
     reflectionOutput: Float32Array[],
     reverbOutput: Float32Array[],
+    outputIndex: number,
     quantumSize: number,
+  ): number
+  pushInput(
+    input: Float32Array[] | undefined,
+    inputIndex: number,
+    sampleCount: number,
   ): void
-  pushInput(input: Float32Array[] | undefined, quantumSize: number): void
   readSharedControl(): void
 }

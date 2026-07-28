@@ -4,6 +4,8 @@ import type {
   AcousticMeshHandle,
   AcousticScene,
   AirAbsorptionSettings,
+  AmbisonicSource,
+  AmbisonicSourceSettings,
   DirectOutputs,
   DirectOverrides,
   DirectSettings,
@@ -27,12 +29,18 @@ import type {
   Vector3Like,
   WorldOptions,
 } from '../types'
+import type { AmbisonicNodeControlValues } from '../worker/audio-node'
 import type { PreparedRuntime } from '../worker/runtime'
 import type { NativeModule } from './native'
 
 import { Quaternion, Matrix4 as ThreeMatrix4, Vector3 } from 'three'
 
-import { ReflectionBusNode, ReverbBusNode, SteamAudioNode } from '../worker/audio-node'
+import {
+  ReflectionBusNode,
+  ReverbBusNode,
+  SteamAudioAmbisonicNode,
+  SteamAudioNode,
+} from '../worker/audio-node'
 import {
   canUseReflectionWorker,
   ReflectionSimulationWorker,
@@ -78,6 +86,15 @@ const up = new Vector3()
 const orientationScratch = new Quaternion()
 const perspectiveMatrix = new ThreeMatrix4()
 const perspectiveDirection = new Vector3()
+const ambisonicSourceAhead = new Vector3()
+const ambisonicSourceUp = new Vector3()
+const ambisonicAhead = new Vector3()
+const ambisonicUp = new Vector3()
+const ambisonicRight = new Vector3()
+const ambisonicListenerAhead = new Vector3()
+const ambisonicListenerUp = new Vector3()
+const ambisonicListenerRight = new Vector3()
+const ambisonicListenerInverse = new Quaternion()
 
 export interface NormalizedReflectionSimulationSettings {
   bounces: number
@@ -492,6 +509,8 @@ const hrtfInterpolationCode = (settings: NormalizedSpatializationSettings): numb
 export type World = Pick<
   WorldImpl,
   | 'audioContext'
+  | 'createAmbisonicNode'
+  | 'createAmbisonicSource'
   | 'createNode'
   | 'createReflectionBus'
   | 'createReverbBus'
@@ -664,6 +683,104 @@ class AcousticSceneImpl implements AcousticScene {
                     out,
                   ))))))))
     return { converted, native }
+  }
+}
+
+class AmbisonicSourceImpl implements AmbisonicSource {
+  readonly nodes = new Set<SteamAudioAmbisonicNode>()
+
+  #binaural: boolean
+  #disposed = false
+  readonly #orientation = new Quaternion()
+  readonly #world: WorldImpl
+
+  constructor(world: WorldImpl, settings?: AmbisonicSourceSettings) {
+    this.#world = world
+    this.#binaural = settings?.binaural ?? true
+    if (typeof this.#binaural !== 'boolean')
+      throw new TypeError('AmbisonicSource.binaural must be a boolean')
+    world.ambisonicSources.add(this)
+  }
+
+  assertActive(operation: string): void {
+    if (this.#disposed)
+      throw new SteamAudioError(operation, 'AmbisonicSource has been disposed')
+    this.#world.assertActive(operation)
+  }
+
+  dispose(): void {
+    if (this.#disposed)
+      return
+    for (const node of [...this.nodes])
+      node.dispose()
+    this.#disposed = true
+    this.#world.ambisonicSources.delete(this)
+  }
+
+  publishControl(): void {
+    this.assertActive('AmbisonicSource.publishControl')
+    const listenerOrientation = this.#world.listenerImpl.orientation
+    ambisonicListenerInverse.copy(listenerOrientation).invert()
+    ambisonicSourceAhead.set(0, 0, -1).applyQuaternion(this.#orientation)
+    ambisonicSourceUp.set(0, 1, 0).applyQuaternion(this.#orientation)
+    ambisonicSourceAhead.applyQuaternion(ambisonicListenerInverse)
+    ambisonicSourceUp.applyQuaternion(ambisonicListenerInverse)
+
+    // Unity converts its source/listener matrices to Steam Audio's
+    // coordinate space before constructing the decoder orientation.
+    ambisonicAhead.set(
+      ambisonicSourceAhead.x,
+      ambisonicSourceAhead.y,
+      -ambisonicSourceAhead.z,
+    ).normalize()
+    ambisonicUp.set(
+      ambisonicSourceUp.x,
+      ambisonicSourceUp.y,
+      -ambisonicSourceUp.z,
+    ).normalize()
+    ambisonicRight.crossVectors(ambisonicAhead, ambisonicUp).normalize()
+    ambisonicListenerAhead.set(
+      -ambisonicRight.z,
+      -ambisonicUp.z,
+      ambisonicAhead.z,
+    ).normalize()
+    ambisonicListenerUp.set(
+      ambisonicRight.y,
+      ambisonicUp.y,
+      -ambisonicAhead.y,
+    ).normalize()
+    ambisonicListenerRight.crossVectors(
+      ambisonicListenerAhead,
+      ambisonicListenerUp,
+    ).normalize()
+
+    const orientation: AmbisonicNodeControlValues['orientation'] = [
+      ambisonicListenerAhead.x,
+      ambisonicListenerAhead.y,
+      ambisonicListenerAhead.z,
+      ambisonicListenerUp.x,
+      ambisonicListenerUp.y,
+      ambisonicListenerUp.z,
+      ambisonicListenerRight.x,
+      ambisonicListenerRight.y,
+      ambisonicListenerRight.z,
+    ]
+    for (const node of this.nodes)
+      node.setControl({ binaural: this.#binaural, orientation })
+  }
+
+  setBinaural(enabled: boolean): void {
+    this.assertActive('AmbisonicSource.setBinaural')
+    if (typeof enabled !== 'boolean')
+      throw new TypeError('AmbisonicSource.binaural must be a boolean')
+    this.#binaural = enabled
+    this.publishControl()
+  }
+
+  setOrientation(orientation: QuaternionLike): void {
+    this.assertActive('AmbisonicSource.setOrientation')
+    this.#orientation.copy(normalizeQuaternion(orientation))
+    this.publishControl()
   }
 }
 
@@ -1061,6 +1178,7 @@ class SourceImpl implements Source {
 }
 
 export class WorldImpl {
+  readonly ambisonicSources = new Set<AmbisonicSourceImpl>()
   readonly audioContext: AudioContext
   readonly context: number
   readonly frameSize: number
@@ -1218,6 +1336,32 @@ export class WorldImpl {
       throw new SteamAudioError(operation, 'World has been disposed')
   }
 
+  createAmbisonicNode(sourceValue: AmbisonicSource): SteamAudioAmbisonicNode {
+    this.assertActive('World.createAmbisonicNode')
+    if (!(sourceValue instanceof AmbisonicSourceImpl)
+      || !this.ambisonicSources.has(sourceValue)) {
+      throw new TypeError(
+        'World.createAmbisonicNode requires an AmbisonicSource created by this World',
+      )
+    }
+    sourceValue.assertActive('World.createAmbisonicNode')
+    const node = new SteamAudioAmbisonicNode(this.audioContext, {
+      frameSize: this.frameSize,
+      hrtf: this.hrtf,
+      onDispose: disposedNode => sourceValue.nodes.delete(disposedNode),
+      source: sourceValue,
+      wasmBinary: this.#wasmBinary,
+    })
+    sourceValue.nodes.add(node)
+    sourceValue.publishControl()
+    return node
+  }
+
+  createAmbisonicSource(settings?: AmbisonicSourceSettings): AmbisonicSource {
+    this.assertActive('World.createAmbisonicSource')
+    return new AmbisonicSourceImpl(this, settings)
+  }
+
   createNode(sourceValue: Source): SteamAudioNode {
     this.assertActive('World.createNode')
     if (!(sourceValue instanceof SourceImpl) || !this.#sources.has(sourceValue))
@@ -1277,6 +1421,8 @@ export class WorldImpl {
   dispose(): void {
     if (this.#disposed)
       return
+    for (const source of [...this.ambisonicSources])
+      source.dispose()
     for (const source of [...this.#sources])
       source.dispose()
     this.#listenerReverbSource?.dispose()
@@ -1331,6 +1477,8 @@ export class WorldImpl {
 
   publishSourceControls(): void {
     for (const source of this.#sources)
+      source.publishControl()
+    for (const source of this.ambisonicSources)
       source.publishControl()
   }
 

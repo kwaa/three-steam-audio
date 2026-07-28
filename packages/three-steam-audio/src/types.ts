@@ -29,6 +29,16 @@ export type AirAbsorptionSettings
     }
     | { model?: 'default' }
 
+export interface AmbisonicSource {
+  dispose: () => void
+  setBinaural: (enabled: boolean) => void
+  setOrientation: (orientation: QuaternionLike) => void
+}
+
+export interface AmbisonicSourceSettings {
+  binaural?: boolean
+}
+
 export interface DirectivitySettings {
   dipolePower?: number
   dipoleWeight?: number

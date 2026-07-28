@@ -1,6 +1,8 @@
 /* global AudioWorkletProcessor, registerProcessor, sampleRate */
 import createSteamAudioModule from './bindings/phonon_bindings.js'
 
+import { silenceOutput } from './audio-worklet-utils.js'
+
 const CONTROL_VALUE_COUNT = 26
 const runtimePromises = new Map()
 
@@ -283,18 +285,42 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     }
     const quantumSize = output[0].length
     if (!this.ready) {
-      for (const target of [output, reflectionOutput, reverbOutput]) {
-        for (const channel of target)
-          channel.fill(0)
-      }
+      silenceOutput(output)
+      silenceOutput(reflectionOutput)
+      silenceOutput(reverbOutput)
       return !this.disposed
     }
 
     this.readSharedControl()
-    this.pushInput(inputs[0], quantumSize)
-    while (this.inputCount >= this.frameSize)
+    let inputIndex = 0
+    let outputIndex = this.pullOutput(
+      output,
+      reflectionOutput,
+      reverbOutput,
+      0,
+      quantumSize,
+    )
+    while (inputIndex < quantumSize) {
+      const sampleCount = Math.min(
+        this.frameSize - this.inputCount,
+        quantumSize - inputIndex,
+      )
+      this.pushInput(inputs[0], inputIndex, sampleCount)
+      inputIndex += sampleCount
+      if (this.inputCount < this.frameSize)
+        continue
       this.processBlock()
-    this.pullOutput(output, reflectionOutput, reverbOutput, quantumSize)
+      outputIndex = this.pullOutput(
+        output,
+        reflectionOutput,
+        reverbOutput,
+        outputIndex,
+        quantumSize,
+      )
+    }
+    silenceOutput(output, outputIndex)
+    silenceOutput(reflectionOutput, outputIndex)
+    silenceOutput(reverbOutput, outputIndex)
     return !this.disposed
   }
 
@@ -447,38 +473,36 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     }
   }
 
-  pullOutput(output, reflectionOutput, reverbOutput, quantumSize) {
+  pullOutput(
+    output,
+    reflectionOutput,
+    reverbOutput,
+    outputIndex,
+    quantumSize,
+  ) {
     const left = output[0]
     const right = output[1]
-    for (let index = 0; index < quantumSize; index++) {
-      if (this.outputCount > 0) {
-        left[index] = this.outputLeft[this.outputRead]
-        right[index] = this.outputRight[this.outputRead]
-        reflectionOutput[0][index] = this.reflectionLeft[this.outputRead]
-        reflectionOutput[1][index] = this.reflectionRight[this.outputRead]
-        reverbOutput[0][index] = this.reverbLeft[this.outputRead]
-        reverbOutput[1][index] = this.reverbRight[this.outputRead]
-        this.outputRead = (this.outputRead + 1) % this.outputLeft.length
-        this.outputCount--
-      }
-      else {
-        left[index] = 0
-        right[index] = 0
-        reflectionOutput[0][index] = 0
-        reflectionOutput[1][index] = 0
-        reverbOutput[0][index] = 0
-        reverbOutput[1][index] = 0
-      }
+    while (outputIndex < quantumSize && this.outputCount > 0) {
+      left[outputIndex] = this.outputLeft[this.outputRead]
+      right[outputIndex] = this.outputRight[this.outputRead]
+      reflectionOutput[0][outputIndex] = this.reflectionLeft[this.outputRead]
+      reflectionOutput[1][outputIndex] = this.reflectionRight[this.outputRead]
+      reverbOutput[0][outputIndex] = this.reverbLeft[this.outputRead]
+      reverbOutput[1][outputIndex] = this.reverbRight[this.outputRead]
+      this.outputRead = (this.outputRead + 1) % this.outputLeft.length
+      this.outputCount--
+      outputIndex++
     }
+    return outputIndex
   }
 
-  pushInput(input, quantumSize) {
+  pushInput(input, inputIndex, sampleCount) {
     const left = input?.[0]
     const right = input?.[1] ?? left
     const active = left !== undefined
-    for (let index = 0; index < quantumSize; index++) {
-      this.inputLeft[this.inputWrite] = left?.[index] ?? 0
-      this.inputRight[this.inputWrite] = right?.[index] ?? 0
+    for (let index = 0; index < sampleCount; index++) {
+      this.inputLeft[this.inputWrite] = left?.[inputIndex + index] ?? 0
+      this.inputRight[this.inputWrite] = right?.[inputIndex + index] ?? 0
       this.inputActive[this.inputWrite] = active ? 1 : 0
       this.inputWrite = (this.inputWrite + 1) % this.inputLeft.length
       this.inputCount++

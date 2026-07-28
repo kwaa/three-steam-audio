@@ -7,6 +7,44 @@ import createSteamAudioModule from '../dist/bindings/phonon_bindings.js'
 import { getRegisteredProcessor } from './helpers/audio-worklet.ts'
 
 import '../dist/steam-audio-processor.js'
+import '../dist/steam-audio-ambisonic-processor.js'
+
+interface AmbisonicProcessorInstance {
+  dispose: () => void
+  failed: boolean
+  input: Float32Array[]
+  inputPointer?: number
+  output: Float32Array[]
+  port: {
+    messages: unknown[]
+    onmessage?: (event: MessageEvent) => void
+  }
+  process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
+  ready: boolean
+  runtime?: {
+    module: {
+      _sa_ambisonic_decode_effect_apply: (
+        effect: number,
+        hrtf: number,
+        binaural: number,
+        aheadX: number,
+        aheadY: number,
+        aheadZ: number,
+        upX: number,
+        upY: number,
+        upZ: number,
+        rightX: number,
+        rightY: number,
+        rightZ: number,
+        input: number,
+        n3d: number,
+        output: number,
+        sampleCount: number,
+      ) => number
+      HEAPF32: Float32Array
+    }
+  }
+}
 
 interface BusProcessorInstance {
   port: {
@@ -19,12 +57,33 @@ interface BusProcessorInstance {
 interface ProcessorInstance {
   dispose: () => void
   failed: boolean
+  inputLeft: Float32Array
+  outputLeft: Float32Array
   port: {
     messages: unknown[]
     onmessage?: (event: MessageEvent) => void
   }
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
   ready: boolean
+  runtime?: {
+    module: {
+      _sa_direct_effect_apply: (
+        effect: number,
+        effectFlags: number,
+        transmissionType: number,
+        distanceAttenuation: number,
+        airAbsorption: number,
+        directivity: number,
+        occlusion: number,
+        transmission: number,
+        input: number,
+        output: number,
+        channelCount: number,
+        sampleCount: number,
+      ) => number
+      HEAPF32: Float32Array
+    }
+  }
 }
 
 const writeSharedControl = (
@@ -63,6 +122,209 @@ describe('steamAudioProcessor', () => {
     })
   })
 
+  it('streams a 256-sample Ambisonic quantum through small DSP frames', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 32,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    expect(processor.input.every(channel => channel.length === 64)).toBe(true)
+    expect(processor.output.every(channel => channel.length === 64)).toBe(true)
+    const inputRing = processor.input
+    const outputRing = processor.output
+    const input = Array.from({ length: 4 }, (_, channel) =>
+      Float32Array.from(
+        { length: 256 },
+        (_, index) => channel + index / 256,
+      ))
+    const output = [new Float32Array(256), new Float32Array(256)]
+    const module = processor.runtime?.module
+    expect(module).toBeDefined()
+    const apply = module!._sa_ambisonic_decode_effect_apply
+    const frames: Float32Array[][] = []
+    module!._sa_ambisonic_decode_effect_apply = (...args) => {
+      const inputOffset = args[12] >>> 2
+      const sampleCount = args[15]
+      frames.push(Array.from({ length: 4 }, (_, channel) => {
+        const channelOffset = inputOffset + channel * sampleCount
+        return module!.HEAPF32.slice(
+          channelOffset,
+          channelOffset + sampleCount,
+        )
+      }))
+      return apply(...args)
+    }
+
+    expect(processor.process([input], [output])).toBe(true)
+    expect(frames).toHaveLength(8)
+    for (let channel = 0; channel < 4; channel++) {
+      const received = frames.flatMap(frame => [...frame[channel]])
+      expect(received).toEqual([...input[channel]])
+    }
+    expect(processor.input).toBe(inputRing)
+    expect(processor.output).toBe(outputRing)
+    expect(output[0].every(Number.isFinite)).toBe(true)
+    expect(output[1].every(Number.isFinite)).toBe(true)
+
+    module!._sa_ambisonic_decode_effect_apply = apply
+    processor.dispose()
+    expect(processor.process([input], [output])).toBe(false)
+  })
+
+  it('rotates a front-facing AmbiX field with the listener', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const createProcessor = () => new Processor({
+      processorOptions: {
+        frameSize: 128,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    const front = createProcessor()
+    const positiveYaw = createProcessor()
+    const negativeYaw = createProcessor()
+    const processors = [front, positiveYaw, negativeYaw]
+    await Promise.all(processors.map(async (processor) => {
+      await waitUntil(() => processor.ready)
+    }))
+
+    const setOrientation = (
+      processor: AmbisonicProcessorInstance,
+      orientation: number[],
+    ) => {
+      const control = new Float32Array(10)
+      control[0] = 1
+      control.set(orientation, 1)
+      processor.port.onmessage?.({
+        data: { type: 'control', values: control },
+      } as MessageEvent)
+    }
+    setOrientation(front, [0, 0, 1, 0, 1, 0, -1, 0, 0])
+    setOrientation(positiveYaw, [-1, 0, 0, 0, 1, 0, 0, 0, -1])
+    setOrientation(negativeYaw, [1, 0, 0, 0, 1, 0, 0, 0, 1])
+
+    const renderEnergy = (processor: AmbisonicProcessorInstance) => {
+      const energy = [0, 0]
+      for (let block = 0; block < 4; block++) {
+        const signal = Float32Array.from(
+          { length: 128 },
+          (_, index) => Math.sin((block * 128 + index) * 0.37)
+            + Math.sin((block * 128 + index) * 0.119),
+        )
+        // ACN/SN3D first-order AmbiX: W, Y, Z, X. Positive X is ahead.
+        const input = [
+          signal,
+          new Float32Array(128),
+          new Float32Array(128),
+          signal,
+        ]
+        const output = [new Float32Array(128), new Float32Array(128)]
+        expect(processor.process([input], [output])).toBe(true)
+        if (block < 2)
+          continue
+        for (let channel = 0; channel < 2; channel++) {
+          energy[channel] += output[channel].reduce(
+            (sum, value) => sum + value * value,
+            0,
+          )
+        }
+      }
+      return energy
+    }
+
+    const frontEnergy = renderEnergy(front)
+    const positiveYawEnergy = renderEnergy(positiveYaw)
+    const negativeYawEnergy = renderEnergy(negativeYaw)
+    expect(frontEnergy[0]).toBeGreaterThan(frontEnergy[1] * 0.5)
+    expect(frontEnergy[1]).toBeGreaterThan(frontEnergy[0] * 0.5)
+    expect(positiveYawEnergy[1]).toBeGreaterThan(positiveYawEnergy[0] * 2)
+    expect(negativeYawEnergy[0]).toBeGreaterThan(negativeYawEnergy[1] * 2)
+
+    for (const processor of processors)
+      processor.dispose()
+  })
+
+  it('fails when an input does not contain four discrete channels', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 128,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    const input = [new Float32Array(128), new Float32Array(128)]
+    const output = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    expect(processor.process([input], [output])).toBe(true)
+    expect(processor.failed).toBe(true)
+    expect(processor.port.messages).toContainEqual({
+      message: 'Ambisonic input must have exactly 4 channels',
+      type: 'error',
+    })
+    expect(output[0].every(value => value === 0)).toBe(true)
+  })
+
+  it('stops processing queued frames when Ambisonic decoding fails', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 32,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    const input = Array.from(
+      { length: 4 },
+      () => new Float32Array(128).fill(0.25),
+    )
+    const output = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    const module = processor.runtime?.module
+    expect(module).toBeDefined()
+    const apply = module!._sa_ambisonic_decode_effect_apply
+    const failingApply = vi.fn(() => 1)
+    module!._sa_ambisonic_decode_effect_apply = failingApply
+
+    expect(processor.process([input], [output])).toBe(true)
+    expect(failingApply).toHaveBeenCalledOnce()
+    expect(processor.failed).toBe(true)
+    expect(processor.port.messages).toContainEqual({
+      message: 'Ambisonic decode failed with status 1',
+      type: 'error',
+    })
+    for (const channel of output)
+      expect(channel.every(value => value === 0)).toBe(true)
+
+    module!._sa_ambisonic_decode_effect_apply = apply
+    processor.dispose()
+  })
+
   it('initializes the real worklet WASM runtime and adapts 128-frame render quanta', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const Processor = getRegisteredProcessor<new (options: { processorOptions: { frameSize: number, wasmBinary: ArrayBuffer } }) => ProcessorInstance>()
@@ -94,6 +356,66 @@ describe('steamAudioProcessor', () => {
 
     processor.dispose()
     expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
+  })
+
+  it('streams a 256-sample stereo quantum through small DSP frames', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => ProcessorInstance>()
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 32,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    expect(processor.inputLeft).toHaveLength(64)
+    expect(processor.outputLeft).toHaveLength(64)
+    const inputRing = processor.inputLeft
+    const outputRing = processor.outputLeft
+    const input = Array.from({ length: 2 }, (_, channel) =>
+      Float32Array.from(
+        { length: 256 },
+        (_, index) => channel + index / 256,
+      ))
+    const direct = [new Float32Array(256), new Float32Array(256)]
+    const reflections = [new Float32Array(256), new Float32Array(256)]
+    const reverb = [new Float32Array(256), new Float32Array(256)]
+    const module = processor.runtime?.module
+    expect(module).toBeDefined()
+    const apply = module!._sa_direct_effect_apply
+    const frames: Float32Array[][] = []
+    module!._sa_direct_effect_apply = (...args) => {
+      const inputOffset = args[8] >>> 2
+      const channelCount = args[10]
+      const sampleCount = args[11]
+      frames.push(Array.from({ length: channelCount }, (_, channel) => {
+        const channelOffset = inputOffset + channel * sampleCount
+        return module!.HEAPF32.slice(
+          channelOffset,
+          channelOffset + sampleCount,
+        )
+      }))
+      return apply(...args)
+    }
+
+    expect(processor.process(
+      [input],
+      [direct, reflections, reverb],
+    )).toBe(true)
+    expect(frames).toHaveLength(8)
+    for (let channel = 0; channel < 2; channel++) {
+      const received = frames.flatMap(frame => [...frame[channel]])
+      expect(received).toEqual([...input[channel]])
+    }
+    expect(processor.inputLeft).toBe(inputRing)
+    expect(processor.outputLeft).toBe(outputRing)
+
+    module!._sa_direct_effect_apply = apply
+    processor.dispose()
   })
 
   it('reports custom SOFA parsing failures instead of silently using the default HRTF', async () => {

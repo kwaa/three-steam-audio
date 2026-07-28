@@ -4,7 +4,7 @@ sidebar:
   order: 5
 ---
 
-Three Steam Audio exposes three AudioWorklet-based nodes.
+Three Steam Audio exposes four AudioWorklet-based nodes.
 
 ## `SteamAudioNode`
 
@@ -55,6 +55,12 @@ node.dispose(): void
 ```
 
 Disconnects and disposes the node.
+
+## `SteamAudioAmbisonicNode`
+
+Created by [`world.createAmbisonicNode(source)`](/reference/world/#createambisonicnodesource). It decodes a four-channel first-order AmbiX input to stereo. See [`AmbisonicSource`](/reference/ambisonic-source/).
+
+The node has one input and one stereo output, and exposes `ready`, `state`, `error`, and `dispose()` with the same meanings as `SteamAudioNode`.
 
 ## `ReflectionBusNode`
 

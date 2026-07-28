@@ -1,6 +1,14 @@
 export type { World } from '../three/world'
 /* eslint-disable react-refresh/only-export-components */
 export {
+  SteamAudioAmbisonicSource,
+  useSteamAudioAmbisonicSource,
+} from './ambisonic-source'
+export type {
+  SteamAudioAmbisonicSourceApi,
+  SteamAudioAmbisonicSourceProps,
+} from './ambisonic-source'
+export {
   SteamAudio,
   useSteamAudio,
 } from './context'

@@ -65,6 +65,19 @@ int sa_panning_effect_apply(void* effect,
                             const float* in_buffer, float* out_buffer,
                             int num_channels, int num_samples);
 
+int sa_ambisonic_decode_effect_create(void* ctx, int sample_rate,
+                                       int frame_size, void* hrtf,
+                                       int max_order, void** out_effect);
+void sa_ambisonic_decode_effect_release(void* effect);
+int sa_ambisonic_decode_effect_apply(void* effect, void* hrtf,
+                                     int binaural,
+                                     float ahead_x, float ahead_y, float ahead_z,
+                                     float up_x, float up_y, float up_z,
+                                     float right_x, float right_y, float right_z,
+                                     const float* in_buffer,
+                                     float* n3d_buffer, float* out_buffer,
+                                     int num_samples);
+
 int sa_direct_effect_create(void* ctx, int sample_rate, int frame_size,
                             int num_channels, void** out_effect);
 void sa_direct_effect_release(void* effect);

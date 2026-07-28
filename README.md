@@ -156,7 +156,7 @@ pnpm dev:example-react # run demo
 - [ ] Add convolution or hybrid reflections through a web-safe IR transport.
 - [ ] Add pathing for moving sources and listeners without introducing baking
       workflows.
-- [ ] Add Ambisonics support.
+- [x] Add Ambisonics support.
 - [ ] Investigate web-appropriate acceleration paths after the runtime feature
       set is stable.
 

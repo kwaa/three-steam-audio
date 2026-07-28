@@ -373,6 +373,106 @@ int sa_panning_effect_apply(void* effect,
     return 0;
 }
 
+typedef struct {
+    IPLContext context;
+    IPLAmbisonicsDecodeEffect handle;
+} SAAmbisonicDecodeEffect;
+
+EMSCRIPTEN_KEEPALIVE
+int sa_ambisonic_decode_effect_create(void* ctx, int sample_rate,
+                                      int frame_size, void* hrtf,
+                                      int max_order, void** out_effect)
+{
+    if (!ctx || !hrtf || !out_effect || sample_rate <= 0 || frame_size <= 0
+        || max_order != 1)
+        return 1;
+
+    SAAmbisonicDecodeEffect* effect =
+        (SAAmbisonicDecodeEffect*)calloc(1, sizeof(SAAmbisonicDecodeEffect));
+    if (!effect)
+        return (int)IPL_STATUS_OUTOFMEMORY;
+
+    IPLAudioSettings audio;
+    IPLAmbisonicsDecodeEffectSettings settings;
+    memset(&audio, 0, sizeof(audio));
+    memset(&settings, 0, sizeof(settings));
+    audio.samplingRate = sample_rate;
+    audio.frameSize = frame_size;
+    settings.speakerLayout.type = IPL_SPEAKERLAYOUTTYPE_STEREO;
+    settings.speakerLayout.numSpeakers = 2;
+    settings.speakerLayout.speakers = NULL;
+    settings.hrtf = (IPLHRTF)hrtf;
+    settings.maxOrder = max_order;
+
+    IPLerror error = iplAmbisonicsDecodeEffectCreate(
+        (IPLContext)ctx, &audio, &settings, &effect->handle);
+    if (error != IPL_STATUS_SUCCESS) {
+        free(effect);
+        return (int)error;
+    }
+
+    effect->context = (IPLContext)ctx;
+    *out_effect = effect;
+    return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void sa_ambisonic_decode_effect_release(void* effect_ptr)
+{
+    SAAmbisonicDecodeEffect* effect = (SAAmbisonicDecodeEffect*)effect_ptr;
+    if (!effect)
+        return;
+    if (effect->handle)
+        iplAmbisonicsDecodeEffectRelease(&effect->handle);
+    free(effect);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int sa_ambisonic_decode_effect_apply(void* effect_ptr, void* hrtf,
+                                     int binaural,
+                                     float ahead_x, float ahead_y, float ahead_z,
+                                     float up_x, float up_y, float up_z,
+                                     float right_x, float right_y, float right_z,
+                                     const float* in_buffer,
+                                     float* n3d_buffer, float* out_buffer,
+                                     int num_samples)
+{
+    SAAmbisonicDecodeEffect* effect =
+        (SAAmbisonicDecodeEffect*)effect_ptr;
+    if (!effect || !effect->handle || !hrtf || !in_buffer || !n3d_buffer
+        || !out_buffer || num_samples <= 0)
+        return 1;
+
+    const float* input_channels[4];
+    float* n3d_channels[4];
+    float* output_channels[2];
+    for (int channel = 0; channel < 4; ++channel) {
+        input_channels[channel] = in_buffer + channel * num_samples;
+        n3d_channels[channel] = n3d_buffer + channel * num_samples;
+    }
+    for (int channel = 0; channel < 2; ++channel)
+        output_channels[channel] = out_buffer + channel * num_samples;
+
+    IPLAudioBuffer input = { 4, num_samples, (float**)input_channels };
+    IPLAudioBuffer n3d_input = { 4, num_samples, n3d_channels };
+    IPLAudioBuffer output = { 2, num_samples, output_channels };
+    iplAudioBufferConvertAmbisonics(
+        effect->context, IPL_AMBISONICSTYPE_SN3D,
+        IPL_AMBISONICSTYPE_N3D, &input, &n3d_input);
+
+    IPLAmbisonicsDecodeEffectParams params;
+    memset(&params, 0, sizeof(params));
+    params.order = 1;
+    params.hrtf = (IPLHRTF)hrtf;
+    params.binaural = binaural ? IPL_TRUE : IPL_FALSE;
+    params.orientation.ahead = (IPLVector3){ ahead_x, ahead_y, ahead_z };
+    params.orientation.up = (IPLVector3){ up_x, up_y, up_z };
+    params.orientation.right = (IPLVector3){ right_x, right_y, right_z };
+    params.orientation.origin = (IPLVector3){ 0.0f, 0.0f, 0.0f };
+    iplAmbisonicsDecodeEffectApply(effect->handle, &params, &n3d_input, &output);
+    return 0;
+}
+
 EMSCRIPTEN_KEEPALIVE
 int sa_direct_effect_create(void* ctx, int sample_rate, int frame_size,
                             int num_channels, void** out_effect)
