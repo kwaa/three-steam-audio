@@ -33,6 +33,7 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   frameSize: number
   input: Float32Array[]
   inputCount: number
+  inputPointer?: number
   inputRead: number
   inputWrite: number
   n3dPointer?: number
@@ -48,12 +49,13 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   constructor(options: SteamAudioAmbisonicProcessorOptions)
 
   dispose(): void
+  ensureRingCapacity(minimumCapacity: number): void
   fail(message: string): void
   initialize(runtime: SteamAudioAmbisonicProcessorRuntime): void
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean
-  processBlock(): void
+  processBlock(): boolean
   pullOutput(output: Float32Array[], quantumSize: number): void
-  pushInput(input: Float32Array[] | undefined, quantumSize: number): void
+  pushInput(input: Float32Array[] | undefined, quantumSize: number): boolean
   readSharedControl(): void
   releaseResources(): void
 }

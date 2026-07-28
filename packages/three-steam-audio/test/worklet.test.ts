@@ -12,12 +12,36 @@ import '../dist/steam-audio-ambisonic-processor.js'
 interface AmbisonicProcessorInstance {
   dispose: () => void
   failed: boolean
+  inputPointer?: number
   port: {
     messages: unknown[]
     onmessage?: (event: MessageEvent) => void
   }
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
   ready: boolean
+  runtime?: {
+    module: {
+      _sa_ambisonic_decode_effect_apply: (
+        effect: number,
+        hrtf: number,
+        binaural: number,
+        aheadX: number,
+        aheadY: number,
+        aheadZ: number,
+        upX: number,
+        upY: number,
+        upZ: number,
+        rightX: number,
+        rightY: number,
+        rightZ: number,
+        input: number,
+        n3d: number,
+        output: number,
+        sampleCount: number,
+      ) => number
+      HEAPF32: Float32Array
+    }
+  }
 }
 
 interface BusProcessorInstance {
@@ -75,7 +99,7 @@ describe('steamAudioProcessor', () => {
     })
   })
 
-  it('decodes first-order four-channel Ambisonics to stereo', async () => {
+  it('passes every Ambisonic sample to WASM once with small DSP frames', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const Processor = getRegisteredProcessor<new (options: { processorOptions: {
       frameSize: number
@@ -83,23 +107,123 @@ describe('steamAudioProcessor', () => {
     } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
     const processor = new Processor({
       processorOptions: {
-        frameSize: 256,
+        frameSize: 32,
         wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
       },
     })
     await waitUntil(() => processor.ready)
 
-    const input = Array.from({ length: 4 }, () => new Float32Array(128).fill(0.25))
-    const first = [new Float32Array(128), new Float32Array(128)]
-    const second = [new Float32Array(128), new Float32Array(128)]
-    expect(processor.process([input], [first])).toBe(true)
-    expect(first[0].every(value => value === 0)).toBe(true)
-    expect(processor.process([input], [second])).toBe(true)
-    expect(second[0].every(Number.isFinite)).toBe(true)
-    expect(second[1].every(Number.isFinite)).toBe(true)
+    const input = Array.from({ length: 4 }, (_, channel) =>
+      Float32Array.from(
+        { length: 128 },
+        (_, index) => channel + index / 128,
+      ))
+    const output = [new Float32Array(128), new Float32Array(128)]
+    const module = processor.runtime?.module
+    expect(module).toBeDefined()
+    const apply = module!._sa_ambisonic_decode_effect_apply
+    const frames: Float32Array[][] = []
+    module!._sa_ambisonic_decode_effect_apply = (...args) => {
+      const inputOffset = args[12] >>> 2
+      const sampleCount = args[15]
+      frames.push(Array.from({ length: 4 }, (_, channel) => {
+        const channelOffset = inputOffset + channel * sampleCount
+        return module!.HEAPF32.slice(
+          channelOffset,
+          channelOffset + sampleCount,
+        )
+      }))
+      return apply(...args)
+    }
 
+    expect(processor.process([input], [output])).toBe(true)
+    expect(frames).toHaveLength(4)
+    for (let channel = 0; channel < 4; channel++) {
+      const received = frames.flatMap(frame => [...frame[channel]])
+      expect(received).toEqual([...input[channel]])
+    }
+    expect(output[0].every(Number.isFinite)).toBe(true)
+    expect(output[1].every(Number.isFinite)).toBe(true)
+
+    module!._sa_ambisonic_decode_effect_apply = apply
     processor.dispose()
-    expect(processor.process([input], [second])).toBe(false)
+    expect(processor.process([input], [output])).toBe(false)
+  })
+
+  it('rotates a front-facing AmbiX field with the listener', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const createProcessor = () => new Processor({
+      processorOptions: {
+        frameSize: 128,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    const front = createProcessor()
+    const positiveYaw = createProcessor()
+    const negativeYaw = createProcessor()
+    const processors = [front, positiveYaw, negativeYaw]
+    await Promise.all(processors.map(async (processor) => {
+      await waitUntil(() => processor.ready)
+    }))
+
+    const setOrientation = (
+      processor: AmbisonicProcessorInstance,
+      orientation: number[],
+    ) => {
+      const control = new Float32Array(10)
+      control[0] = 1
+      control.set(orientation, 1)
+      processor.port.onmessage?.({
+        data: { type: 'control', values: control },
+      } as MessageEvent)
+    }
+    setOrientation(front, [0, 0, 1, 0, 1, 0, -1, 0, 0])
+    setOrientation(positiveYaw, [-1, 0, 0, 0, 1, 0, 0, 0, -1])
+    setOrientation(negativeYaw, [1, 0, 0, 0, 1, 0, 0, 0, 1])
+
+    const renderEnergy = (processor: AmbisonicProcessorInstance) => {
+      const energy = [0, 0]
+      for (let block = 0; block < 4; block++) {
+        const signal = Float32Array.from(
+          { length: 128 },
+          (_, index) => Math.sin((block * 128 + index) * 0.37)
+            + Math.sin((block * 128 + index) * 0.119),
+        )
+        // ACN/SN3D first-order AmbiX: W, Y, Z, X. Positive X is ahead.
+        const input = [
+          signal,
+          new Float32Array(128),
+          new Float32Array(128),
+          signal,
+        ]
+        const output = [new Float32Array(128), new Float32Array(128)]
+        expect(processor.process([input], [output])).toBe(true)
+        if (block < 2)
+          continue
+        for (let channel = 0; channel < 2; channel++) {
+          energy[channel] += output[channel].reduce(
+            (sum, value) => sum + value * value,
+            0,
+          )
+        }
+      }
+      return energy
+    }
+
+    const frontEnergy = renderEnergy(front)
+    const positiveYawEnergy = renderEnergy(positiveYaw)
+    const negativeYawEnergy = renderEnergy(negativeYaw)
+    expect(frontEnergy[0]).toBeGreaterThan(frontEnergy[1] * 0.5)
+    expect(frontEnergy[1]).toBeGreaterThan(frontEnergy[0] * 0.5)
+    expect(positiveYawEnergy[1]).toBeGreaterThan(positiveYawEnergy[0] * 2)
+    expect(negativeYawEnergy[0]).toBeGreaterThan(negativeYawEnergy[1] * 2)
+
+    for (const processor of processors)
+      processor.dispose()
   })
 
   it('fails when an input does not contain four discrete channels', async () => {
@@ -110,21 +234,66 @@ describe('steamAudioProcessor', () => {
     } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
     const processor = new Processor({
       processorOptions: {
-        frameSize: 256,
+        frameSize: 128,
         wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
       },
     })
     await waitUntil(() => processor.ready)
 
     const input = [new Float32Array(128), new Float32Array(128)]
-    const output = [new Float32Array(128), new Float32Array(128)]
-    processor.process([input], [output])
+    const output = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    expect(processor.process([input], [output])).toBe(true)
     expect(processor.failed).toBe(true)
     expect(processor.port.messages).toContainEqual({
       message: 'Ambisonic input must have exactly 4 channels',
       type: 'error',
     })
     expect(output[0].every(value => value === 0)).toBe(true)
+  })
+
+  it('stops processing queued frames when Ambisonic decoding fails', async () => {
+    const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
+    const Processor = getRegisteredProcessor<new (options: { processorOptions: {
+      frameSize: number
+      wasmBinary: ArrayBuffer
+    } }) => AmbisonicProcessorInstance>('steam-audio-ambisonic-processor')
+    const processor = new Processor({
+      processorOptions: {
+        frameSize: 32,
+        wasmBinary: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength),
+      },
+    })
+    await waitUntil(() => processor.ready)
+
+    const input = Array.from(
+      { length: 4 },
+      () => new Float32Array(128).fill(0.25),
+    )
+    const output = [
+      new Float32Array(128).fill(1),
+      new Float32Array(128).fill(1),
+    ]
+    const module = processor.runtime?.module
+    expect(module).toBeDefined()
+    const apply = module!._sa_ambisonic_decode_effect_apply
+    const failingApply = vi.fn(() => 1)
+    module!._sa_ambisonic_decode_effect_apply = failingApply
+
+    expect(processor.process([input], [output])).toBe(true)
+    expect(failingApply).toHaveBeenCalledOnce()
+    expect(processor.failed).toBe(true)
+    expect(processor.port.messages).toContainEqual({
+      message: 'Ambisonic decode failed with status 1',
+      type: 'error',
+    })
+    for (const channel of output)
+      expect(channel.every(value => value === 0)).toBe(true)
+
+    module!._sa_ambisonic_decode_effect_apply = apply
+    processor.dispose()
   })
 
   it('initializes the real worklet WASM runtime and adapts 128-frame render quanta', async () => {
