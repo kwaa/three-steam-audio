@@ -1,6 +1,11 @@
 /* global AudioWorkletProcessor, registerProcessor, sampleRate */
 import createSteamAudioModule from './bindings/phonon_bindings.js'
 
+import {
+  getRenderQuantumSize,
+  silenceOutput,
+} from './audio-worklet-utils.js'
+
 const CONTROL_VALUE_COUNT = 26
 const runtimePromises = new Map()
 
@@ -130,7 +135,8 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     this.rendererWeights = new Float32Array(3)
     this.spatializationMix = 0
 
-    const ringSize = this.frameSize * 2
+    this.quantumSize = getRenderQuantumSize()
+    const ringSize = this.frameSize + this.quantumSize
     this.inputLeft = new Float32Array(ringSize)
     this.inputRight = new Float32Array(ringSize)
     this.inputActive = new Uint8Array(ringSize)
@@ -231,6 +237,20 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     releaseRuntime(runtime)
   }
 
+  fail(message) {
+    if (this.failed || this.disposed)
+      return
+    this.failed = true
+    this.port.postMessage({ message, type: 'error' })
+    if (!this.ready)
+      return
+    const runtime = this.runtime
+    this.releaseResources()
+    this.ready = false
+    this.runtime = undefined
+    releaseRuntime(runtime)
+  }
+
   initialize(runtime) {
     if (this.disposed) {
       releaseRuntime(runtime)
@@ -283,14 +303,20 @@ class SteamAudioProcessor extends AudioWorkletProcessor {
     }
     const quantumSize = output[0].length
     if (!this.ready) {
-      for (const target of [output, reflectionOutput, reverbOutput]) {
-        for (const channel of target)
-          channel.fill(0)
-      }
+      silenceOutput(output)
+      silenceOutput(reflectionOutput)
+      silenceOutput(reverbOutput)
       return !this.disposed
     }
 
     this.readSharedControl()
+    if (quantumSize !== this.quantumSize) {
+      this.fail(`Render quantum size changed from ${this.quantumSize} to ${quantumSize}`)
+      silenceOutput(output)
+      silenceOutput(reflectionOutput)
+      silenceOutput(reverbOutput)
+      return !this.disposed
+    }
     this.pushInput(inputs[0], quantumSize)
     while (this.inputCount >= this.frameSize)
       this.processBlock()

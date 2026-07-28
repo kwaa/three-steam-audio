@@ -42,6 +42,7 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   outputPointer?: number
   outputRead: number
   outputWrite: number
+  quantumSize: number
   ready: boolean
   runtime?: SteamAudioAmbisonicProcessorRuntime
   sharedControl?: Float32Array
@@ -49,7 +50,6 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   constructor(options: SteamAudioAmbisonicProcessorOptions)
 
   dispose(): void
-  ensureRingCapacity(minimumCapacity: number): void
   fail(message: string): void
   initialize(runtime: SteamAudioAmbisonicProcessorRuntime): void
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean

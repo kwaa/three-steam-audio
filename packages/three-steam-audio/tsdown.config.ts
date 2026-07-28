@@ -10,6 +10,7 @@ export default defineConfig({
       to: '.',
     },
     { from: 'src/bindings/*', to: 'dist/bindings' },
+    { flatten: true, from: 'src/worker/audio-worklet-utils.js', to: 'dist' },
     { flatten: true, from: 'src/worker/reflection-simulator-worker.js', to: 'dist' },
     { flatten: true, from: 'src/worker/steam-audio-processor.*', to: 'dist' },
     { flatten: true, from: 'src/worker/steam-audio-ambisonic-processor.*', to: 'dist' },

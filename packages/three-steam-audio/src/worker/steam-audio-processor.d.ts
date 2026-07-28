@@ -55,6 +55,7 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   outputRight: Float32Array
   outputWrite: number
   panningEffect?: number
+  quantumSize: number
   ready: boolean
   reflectionEffect?: number
   reflectionLeft: Float32Array
@@ -74,6 +75,7 @@ export class SteamAudioProcessor extends AudioWorkletProcessor {
   constructor(options: SteamAudioProcessorOptions)
 
   dispose(): void
+  fail(message: string): void
   initialize(runtime: SteamAudioProcessorRuntime): void
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean
   processBlock(): void
