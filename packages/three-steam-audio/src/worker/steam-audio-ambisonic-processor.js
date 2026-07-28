@@ -1,10 +1,7 @@
 /* global AudioWorkletProcessor, registerProcessor, sampleRate */
 import createSteamAudioModule from './bindings/phonon_bindings.js'
 
-import {
-  getRenderQuantumSize,
-  silenceOutput,
-} from './audio-worklet-utils.js'
+import { silenceOutput } from './audio-worklet-utils.js'
 
 const CONTROL_VALUE_COUNT = 10
 const CHANNEL_COUNT = 4
@@ -116,8 +113,7 @@ class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
     // Decoder orientation for an unrotated AmbiX source/listener pair.
     this.control.set([0, 0, 1, 0, 1, 0, -1, 0, 0], 1)
 
-    this.quantumSize = getRenderQuantumSize()
-    const ringSize = this.frameSize + this.quantumSize
+    const ringSize = this.frameSize * 2
     this.input = Array.from({ length: CHANNEL_COUNT }, () => new Float32Array(ringSize))
     this.output = Array.from({ length: OUTPUT_CHANNEL_COUNT }, () => new Float32Array(ringSize))
     this.inputRead = 0
@@ -220,22 +216,29 @@ class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
     }
 
     this.readSharedControl()
-    if (quantumSize !== this.quantumSize) {
-      this.fail(`Render quantum size changed from ${this.quantumSize} to ${quantumSize}`)
+    const input = inputs[0]
+    if (!this.validateInput(input)) {
       silenceOutput(output)
       return !this.disposed
     }
-    if (!this.pushInput(inputs[0], quantumSize)) {
-      silenceOutput(output)
-      return !this.disposed
-    }
-    while (this.inputCount >= this.frameSize) {
+    let inputIndex = 0
+    let outputIndex = this.pullOutput(output, 0, quantumSize)
+    while (inputIndex < quantumSize) {
+      const sampleCount = Math.min(
+        this.frameSize - this.inputCount,
+        quantumSize - inputIndex,
+      )
+      this.pushInput(input, inputIndex, sampleCount)
+      inputIndex += sampleCount
+      if (this.inputCount < this.frameSize)
+        continue
       if (!this.processBlock()) {
         silenceOutput(output)
         return !this.disposed
       }
+      outputIndex = this.pullOutput(output, outputIndex, quantumSize)
     }
-    this.pullOutput(output, quantumSize)
+    silenceOutput(output, outputIndex)
     return !this.disposed
   }
 
@@ -285,38 +288,25 @@ class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
     return true
   }
 
-  pullOutput(output, quantumSize) {
-    for (let index = 0; index < quantumSize; index++) {
-      if (this.outputCount > 0) {
-        output[0][index] = this.output[0][this.outputRead]
-        output[1][index] = this.output[1][this.outputRead]
-        this.outputRead = (this.outputRead + 1) % this.output[0].length
-        this.outputCount--
-      }
-      else {
-        output[0][index] = 0
-        output[1][index] = 0
-      }
+  pullOutput(output, outputIndex, quantumSize) {
+    while (outputIndex < quantumSize && this.outputCount > 0) {
+      output[0][outputIndex] = this.output[0][this.outputRead]
+      output[1][outputIndex] = this.output[1][this.outputRead]
+      this.outputRead = (this.outputRead + 1) % this.output[0].length
+      this.outputCount--
+      outputIndex++
     }
+    return outputIndex
   }
 
-  pushInput(input, quantumSize) {
-    const channelCount = input?.length ?? 0
-    if (channelCount !== 0 && channelCount !== CHANNEL_COUNT) {
-      if (!this.invalidInputReported) {
-        this.invalidInputReported = true
-        this.fail(`Ambisonic input must have exactly ${CHANNEL_COUNT} channels`)
-      }
-      return false
-    }
-    const active = channelCount === CHANNEL_COUNT
-    for (let index = 0; index < quantumSize; index++) {
+  pushInput(input, inputIndex, sampleCount) {
+    const active = input?.length === CHANNEL_COUNT
+    for (let index = 0; index < sampleCount; index++) {
       for (let channel = 0; channel < CHANNEL_COUNT; channel++)
-        this.input[channel][this.inputWrite] = active ? (input[channel]?.[index] ?? 0) : 0
+        this.input[channel][this.inputWrite] = active ? (input[channel]?.[inputIndex + index] ?? 0) : 0
       this.inputWrite = (this.inputWrite + 1) % this.input[0].length
       this.inputCount++
     }
-    return true
   }
 
   readSharedControl() {
@@ -348,6 +338,17 @@ class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
       this[property] = undefined
     }
     this.ready = false
+  }
+
+  validateInput(input) {
+    const channelCount = input?.length ?? 0
+    if (channelCount === 0 || channelCount === CHANNEL_COUNT)
+      return true
+    if (!this.invalidInputReported) {
+      this.invalidInputReported = true
+      this.fail(`Ambisonic input must have exactly ${CHANNEL_COUNT} channels`)
+    }
+    return false
   }
 }
 

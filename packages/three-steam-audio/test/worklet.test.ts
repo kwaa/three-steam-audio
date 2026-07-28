@@ -20,7 +20,6 @@ interface AmbisonicProcessorInstance {
     onmessage?: (event: MessageEvent) => void
   }
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
-  quantumSize: number
   ready: boolean
   runtime?: {
     module: {
@@ -65,7 +64,6 @@ interface ProcessorInstance {
     onmessage?: (event: MessageEvent) => void
   }
   process: (inputs: Float32Array[][], outputs: Float32Array[][]) => boolean
-  quantumSize: number
   ready: boolean
   runtime?: {
     module: {
@@ -120,13 +118,11 @@ describe('steamAudioProcessor', () => {
   beforeEach(() => {
     Object.assign(globalThis, {
       Atomics,
-      renderQuantumSize: 128,
       SharedArrayBuffer,
     })
   })
 
-  it('passes every Ambisonic sample to WASM once with small DSP frames', async () => {
-    Object.assign(globalThis, { renderQuantumSize: 256 })
+  it('streams a 256-sample Ambisonic quantum through small DSP frames', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const Processor = getRegisteredProcessor<new (options: { processorOptions: {
       frameSize: number
@@ -140,9 +136,8 @@ describe('steamAudioProcessor', () => {
     })
     await waitUntil(() => processor.ready)
 
-    expect(processor.quantumSize).toBe(256)
-    expect(processor.input.every(channel => channel.length === 288)).toBe(true)
-    expect(processor.output.every(channel => channel.length === 288)).toBe(true)
+    expect(processor.input.every(channel => channel.length === 64)).toBe(true)
+    expect(processor.output.every(channel => channel.length === 64)).toBe(true)
     const inputRing = processor.input
     const outputRing = processor.output
     const input = Array.from({ length: 4 }, (_, channel) =>
@@ -363,8 +358,7 @@ describe('steamAudioProcessor', () => {
     expect(processor.process([[input]], [second, secondReflections, secondReverb])).toBe(false)
   })
 
-  it('passes every stereo sample to WASM with small DSP frames', async () => {
-    Object.assign(globalThis, { renderQuantumSize: 256 })
+  it('streams a 256-sample stereo quantum through small DSP frames', async () => {
     const wasm = await readFile(new URL('../dist/bindings/phonon_bindings.wasm', import.meta.url))
     const Processor = getRegisteredProcessor<new (options: { processorOptions: {
       frameSize: number
@@ -378,9 +372,8 @@ describe('steamAudioProcessor', () => {
     })
     await waitUntil(() => processor.ready)
 
-    expect(processor.quantumSize).toBe(256)
-    expect(processor.inputLeft).toHaveLength(288)
-    expect(processor.outputLeft).toHaveLength(288)
+    expect(processor.inputLeft).toHaveLength(64)
+    expect(processor.outputLeft).toHaveLength(64)
     const inputRing = processor.inputLeft
     const outputRing = processor.outputLeft
     const input = Array.from({ length: 2 }, (_, channel) =>

@@ -42,7 +42,6 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   outputPointer?: number
   outputRead: number
   outputWrite: number
-  quantumSize: number
   ready: boolean
   runtime?: SteamAudioAmbisonicProcessorRuntime
   sharedControl?: Float32Array
@@ -54,8 +53,13 @@ export class SteamAudioAmbisonicProcessor extends AudioWorkletProcessor {
   initialize(runtime: SteamAudioAmbisonicProcessorRuntime): void
   process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean
   processBlock(): boolean
-  pullOutput(output: Float32Array[], quantumSize: number): void
-  pushInput(input: Float32Array[] | undefined, quantumSize: number): boolean
+  pullOutput(output: Float32Array[], outputIndex: number, quantumSize: number): number
+  pushInput(
+    input: Float32Array[] | undefined,
+    inputIndex: number,
+    sampleCount: number,
+  ): void
   readSharedControl(): void
   releaseResources(): void
+  validateInput(input: Float32Array[] | undefined): boolean
 }
