@@ -23,6 +23,7 @@ dist
 
 # bindings dist
 packages/three-steam-audio/src/bindings
+.build
 
 # generated package docs
 packages/three-steam-audio/LICENSE
