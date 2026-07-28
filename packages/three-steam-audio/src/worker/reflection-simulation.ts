@@ -1,7 +1,7 @@
 import type { Matrix4 } from 'three'
 
 import type { ConvertedGeometry } from '../three/geometry'
-import type { NormalizedReflectionSimulationSettings } from '../three/world'
+import type { NormalizedReflectionSimulationSettings } from '../three/settings'
 
 import { matrixToRowMajor } from '../three/geometry'
 
