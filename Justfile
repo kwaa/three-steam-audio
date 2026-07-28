@@ -5,9 +5,23 @@ steam-build := steam-core / "build"
 build := root / ".build"
 wasm-build := build / "wasm"
 bindings-dist := root / "packages/three-steam-audio/src/bindings"
+dependencies-cache-stamp := steam-core / "deps/.dependencies-cache-revision"
 
 get_dependencies:
-  cd "{{steam-build}}" && python3 get_dependencies.py --platform wasm
+  @revision="$(git -C "{{steam}}" rev-parse HEAD)"; \
+  case "$(uname -s)" in Linux) host_platform=linux-x64;; Darwin) host_platform=osx;; *) host_platform=linux-x64;; esac; \
+  if test -f "{{dependencies-cache-stamp}}" \
+    && test "$(cat "{{dependencies-cache-stamp}}")" = "$revision" \
+    && test -f "{{steam-core}}/deps/flatbuffers/include/flatbuffers/flatbuffers.h" \
+    && test -x "{{steam-core}}/deps/flatbuffers/bin/$host_platform/flatc" \
+    && test -f "{{steam-core}}/deps/pffft/lib/wasm/release/libpffft.a" \
+    && test -f "{{steam-core}}/deps/mysofa/lib/wasm/release/libmysofa.a" \
+    && test -f "{{steam-core}}/deps/zlib/lib/wasm/release/libz.a"; then \
+    echo "Steam Audio dependencies are already cached ($revision)"; \
+  else \
+    cd "{{steam-build}}" && python3 get_dependencies.py --platform wasm; \
+    printf '%s\n' "$revision" > "{{dependencies-cache-stamp}}"; \
+  fi
 
 patch:
   @if grep -q 'FLATBUFFERS_DELETE_FUNC(TableKeyComparator &operator=(const TableKeyComparator &other))' \
@@ -23,26 +37,13 @@ patch:
     patch -p0 < "{{root}}/patches/steam-audio/emscripten-synchronous-thread-pool.patch"; \
   fi
 
-build-steam-audio: patch
-  cd "{{steam-build}}" && python3 build.py --platform wasm \
-    --minimal \
-    --operation ci_build
+build-steam-audio: get_dependencies
+  mkdir -p "{{build}}"
+  STEAM_AUDIO_REV="$(git -C "{{steam}}" rev-parse HEAD)" \
+    nix build --impure .#steam-audio-wasm --out-link "{{build}}/steam-audio-wasm"
 
-build-bindings:
+build-bindings: build-steam-audio
   mkdir -p "{{bindings-dist}}"
-  node "{{root}}/scripts/generate-types.ts" "{{bindings-dist}}/phonon_bindings.d.ts"
-  emcc -O3 \
-    -I "{{steam-core}}/bin/include" \
-    -I bindings \
-    bindings/bindings.c \
-    "{{steam-core}}/bin/lib/wasm/libphonon.a" \
-    "{{steam-core}}/deps/pffft/lib/wasm/release/libpffft.a" \
-    "{{steam-core}}/deps/mysofa/lib/wasm/release/libmysofa.a" \
-    "{{steam-core}}/deps/zlib/lib/wasm/release/libz.a" \
-    -s WASM=1 \
-    -s EXPORT_ES6=1 \
-    -s ENVIRONMENT=web,worker \
-    -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","getValue","setValue","HEAP32","HEAPU32","HEAPF32","HEAPU8"]' \
-    -s EXPORTED_FUNCTIONS='["_malloc","_free"]' \
-    -s ALLOW_MEMORY_GROWTH=1 \
-    -o "{{bindings-dist}}/phonon_bindings.js"
+  chmod -R u+w "{{bindings-dist}}"
+  cp -r "{{build}}/steam-audio-wasm/bindings/." "{{bindings-dist}}/"
+  chmod -R u+w "{{bindings-dist}}"

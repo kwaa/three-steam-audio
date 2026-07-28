@@ -9,15 +9,20 @@ words:
   - antfu
   - APPLYDIRECTIVITY
   - bumpp
+  - ccall
   - changelogithub
+  - cwrap
   - deinterleaved
   - directivity
   - direnv
+  - dont
   - drei
   - emcc
   - emscripten
   - EMSDK
+  - esac
   - esbuild
+  - flatc
   - HEAPF
   - HEAPU
   - hrtf
@@ -25,12 +30,19 @@ words:
   - HRTFTYPE
   - IPLHRTF
   - kwaa
+  - libmysofa
+  - libpffft
+  - libz
   - moeru
+  - mysofa
   - nixpkgs
+  - pffft
   - pkgs
+  - pname
   - seti
   - sonarjs
   - spatialization
+  - stdenv
   - tsdown
   - uikit
   - vite
